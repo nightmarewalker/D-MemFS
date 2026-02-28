@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 from dmemfs._file import RandomAccessMemoryFile
 from dmemfs._quota import QuotaManager
 from dmemfs._exceptions import MFSQuotaExceededError

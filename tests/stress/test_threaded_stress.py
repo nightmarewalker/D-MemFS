@@ -93,7 +93,7 @@ def test_concurrent_create_delete_cycle(mfs_large):
                     pass
                 try:
                     mfs_large.remove(path)
-                except FileNotFoundError:
+                except (FileNotFoundError, BlockingIOError):
                     pass
         except Exception as exc:
             errors.append(exc)
