@@ -1,0 +1,66 @@
+[
+  {
+    "backend": "MFS",
+    "case": "small_files_rw",
+    "seconds_mean": 0.021794550004415214,
+    "seconds_min": 0.021650100010447204,
+    "seconds_max": 0.021938999998383224,
+    "peak_kib_mean": 507.5263671875
+  },
+  {
+    "backend": "BytesIO(dict)",
+    "case": "small_files_rw",
+    "seconds_mean": 0.0031848499784246087,
+    "seconds_min": 0.003182200016453862,
+    "seconds_max": 0.0031874999403953552,
+    "peak_kib_mean": 1261.056640625
+  },
+  {
+    "backend": "PyFilesystem2(MemoryFS)",
+    "case": "small_files_rw",
+    "seconds_mean": 0.023356999969109893,
+    "seconds_min": 0.022922799922525883,
+    "seconds_max": 0.023791200015693903,
+    "peak_kib_mean": 1418.0185546875
+  },
+  {
+    "backend": "tempfile",
+    "case": "small_files_rw",
+    "seconds_mean": 2.253677600005176,
+    "seconds_min": 2.2522075000451878,
+    "seconds_max": 2.255147699965164,
+    "peak_kib_mean": 25.7734375
+  },
+  {
+    "backend": "MFS",
+    "case": "stream_write_read",
+    "seconds_mean": 0.06141550000756979,
+    "seconds_min": 0.05867860000580549,
+    "seconds_max": 0.06415240000933409,
+    "peak_kib_mean": 34462.9521484375
+  },
+  {
+    "backend": "BytesIO",
+    "case": "stream_write_read",
+    "seconds_mean": 0.04079769994132221,
+    "seconds_min": 0.04070689994841814,
+    "seconds_max": 0.040888499934226274,
+    "peak_kib_mean": 18064.20703125
+  },
+  {
+    "backend": "PyFilesystem2(MemoryFS)",
+    "case": "stream_write_read",
+    "seconds_mean": 0.046446099993772805,
+    "seconds_min": 0.04638199997134507,
+    "seconds_max": 0.04651020001620054,
+    "peak_kib_mean": 34450.9453125
+  },
+  {
+    "backend": "tempfile",
+    "case": "stream_write_read",
+    "seconds_mean": 0.08792845002608374,
+    "seconds_min": 0.08584569999948144,
+    "seconds_max": 0.09001120005268604,
+    "peak_kib_mean": 16457.365234375
+  }
+]

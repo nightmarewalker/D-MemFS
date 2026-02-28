@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "D-MemFS"
+version = "0.2.0"
+description = "In-process virtual filesystem with hard quota for Python"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: System :: Filesystems",
+]
+keywords = ["filesystem", "memory", "virtual", "quota", "in-process"]
+dependencies = []
+
+authors = [{name = "D"}]
+
+[project.urls]
+Homepage = "https://github.com/nightmarewalker/D-MemFS"
+Repository = "https://github.com/nightmarewalker/D-MemFS"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["dmemfs*"]
+
+[tool.setuptools.package-data]
+dmemfs = ["py.typed"]
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.151.9",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=0.24",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line-too-long (handled by formatter)
+]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+warn_unused_ignores = true
+warn_return_any = true
+disallow_untyped_defs = true
+ignore_missing_imports = true

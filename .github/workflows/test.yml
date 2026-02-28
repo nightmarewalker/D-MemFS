@@ -1,0 +1,50 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Compile requirements
+      run: uv pip compile requirements.in -o requirements.txt
+    - name: Run tests with coverage
+      run: uvx --with-requirements requirements.txt --with-editable . pytest tests/ -v --timeout=30 --cov=dmemfs --cov-report=xml --cov-report=term-missing
+    - name: Upload coverage artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-${{ matrix.os }}-py${{ matrix.python-version }}
+        path: coverage.xml
+    - name: Upload coverage to Codecov
+      if: ${{ vars.ENABLE_CODECOV == 'true' }}
+      uses: codecov/codecov-action@v4
+      with:
+        files: coverage.xml
+        fail_ci_if_error: true
+    - name: Generate API docs (pdoc)
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      run: uvx --with-requirements requirements.txt pdoc dmemfs -o docs/api
+    - name: Upload API docs artifact
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      uses: actions/upload-artifact@v4
+      with:
+        name: api-docs-pdoc
+        path: docs/api
