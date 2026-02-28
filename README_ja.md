@@ -3,6 +3,7 @@
 **Python向け、プロセス内ハードクォータ付き仮想ファイルシステム**
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
+[![Tests](https://github.com/nightmarewalker/D-MemFS/actions/workflows/test.yml/badge.svg)](https://github.com/nightmarewalker/D-MemFS/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Zero dependencies (runtime)](https://img.shields.io/badge/runtime_deps-none-brightgreen.svg)]()
 
