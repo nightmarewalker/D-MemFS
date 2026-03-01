@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "D-MemFS"
-version = "0.2.0"
+version = "0.2.1"
 description = "In-process virtual filesystem with hard quota for Python"
 readme = "README.md"
 requires-python = ">=3.11"
