@@ -4,10 +4,10 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
 [![Tests](https://github.com/nightmarewalker/D-MemFS/actions/workflows/test.yml/badge.svg)](https://github.com/nightmarewalker/D-MemFS/actions/workflows/test.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/nightmarewalker/D-MemFS/blob/main/LICENSE)
 [![Zero dependencies (runtime)](https://img.shields.io/badge/runtime_deps-none-brightgreen.svg)]()
 
-Languages: [English](./README.md) | [Japanese](./README_ja.md)
+Languages: [English](https://github.com/nightmarewalker/D-MemFS/blob/main/README.md) | [Japanese](https://github.com/nightmarewalker/D-MemFS/blob/main/README_ja.md)
 
 ---
 
@@ -255,7 +255,7 @@ See `BENCHMARK.md` for details.
 
 Latest benchmark snapshot:
 
-- [benchmark_current_result.md](./benchmarks/results/benchmark_current_result.md)
+- [benchmark_current_result.md](https://github.com/nightmarewalker/D-MemFS/blob/main/benchmarks/results/benchmark_current_result.md)
 
 ---
 
@@ -292,7 +292,7 @@ Or as HTML using `pdoc` (local browsing only):
 uvx --with-requirements requirements.txt pdoc dmemfs -o docs/api
 ```
 
-- [API Reference (Markdown)](./docs/api_md/index.md)
+- [API Reference (Markdown)](https://github.com/nightmarewalker/D-MemFS/blob/main/docs/api_md/index.md)
 
 ---
 
@@ -359,9 +359,9 @@ def test_write_read(mfs):
 
 Design documents (Japanese):
 
-- [Architecture Spec v13](./docs/design/spec_v13.md) — API design, internal structure, CI matrix
-- [Detailed Design Spec](./docs/design/DetailedDesignSpec.md) — component-level design and rationale
-- [Test Design Spec](./docs/design/DetailedDesignSpec_test.md) — test case table and pseudocode
+- [Architecture Spec v13](https://github.com/nightmarewalker/D-MemFS/blob/main/docs/design/spec_v13.md) — API design, internal structure, CI matrix
+- [Detailed Design Spec](https://github.com/nightmarewalker/D-MemFS/blob/main/docs/design/DetailedDesignSpec.md) — component-level design and rationale
+- [Test Design Spec](https://github.com/nightmarewalker/D-MemFS/blob/main/docs/design/DetailedDesignSpec_test.md) — test case table and pseudocode
 
 > These documents are written in Japanese and serve as internal design references.
 
@@ -379,7 +379,7 @@ Key results from the included benchmark (300 small files × 4 KiB, 16 MiB stream
 | large_stream_write_read | **1 438** | 7 594 | 1 931 |
 | many_files_random_read | 777 | 163 | 4 745 |
 
-MFS incurs a small overhead on tiny-file workloads but delivers significantly better performance on large streams and random-access patterns compared with `BytesIO`. See `BENCHMARK.md` and [benchmark_current_result.md](./benchmarks/results/benchmark_current_result.md) for full data.
+MFS incurs a small overhead on tiny-file workloads but delivers significantly better performance on large streams and random-access patterns compared with `BytesIO`. See `BENCHMARK.md` and [benchmark_current_result.md](https://github.com/nightmarewalker/D-MemFS/blob/main/benchmarks/results/benchmark_current_result.md) for full data.
 
 > **Note:** `tempfile` results above were measured with the system temp directory on a RAM disk. On a physical SSD/HDD, `tempfile` performance will be substantially slower.
 

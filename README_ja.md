@@ -4,10 +4,10 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
 [![Tests](https://github.com/nightmarewalker/D-MemFS/actions/workflows/test.yml/badge.svg)](https://github.com/nightmarewalker/D-MemFS/actions/workflows/test.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/nightmarewalker/D-MemFS/blob/main/LICENSE)
 [![Zero dependencies (runtime)](https://img.shields.io/badge/runtime_deps-none-brightgreen.svg)]()
 
-言語: [英語（デフォルト）](./README.md) | [日本語](./README_ja.md)
+言語: [英語（デフォルト）](https://github.com/nightmarewalker/D-MemFS/blob/main/README.md) | [日本語](https://github.com/nightmarewalker/D-MemFS/blob/main/README_ja.md)
 
 ---
 
@@ -253,7 +253,7 @@ uvx --with-requirements requirements.txt --with-editable . python benchmarks/com
 
 最新のベンチマーク結果:
 
-- [benchmark_current_result.md](./benchmarks/results/benchmark_current_result.md)
+- [benchmark_current_result.md](https://github.com/nightmarewalker/D-MemFS/blob/main/benchmarks/results/benchmark_current_result.md)
 
 ---
 
@@ -290,7 +290,7 @@ HTML形式（ローカルブラウザ用）:
 uvx --with-requirements requirements.txt pdoc dmemfs -o docs/api
 ```
 
-- [API リファレンス（Markdown）](./docs/api_md/index.md)
+- [API リファレンス（Markdown）](https://github.com/nightmarewalker/D-MemFS/blob/main/docs/api_md/index.md)
 
 ---
 
@@ -355,9 +355,9 @@ def test_write_read(mfs):
 
 設計書:
 
-- [アーキテクチャ仕様 v13](./docs/design/spec_v13.md) — API 設計・内部構造・CI マトリクス
-- [詳細設計書](./docs/design/DetailedDesignSpec.md) — コンポーネント設計と実装意図
-- [テスト詳細設計書](./docs/design/DetailedDesignSpec_test.md) — テストケース一覧と疑似コード
+- [アーキテクチャ仕様 v13](https://github.com/nightmarewalker/D-MemFS/blob/main/docs/design/spec_v13.md) — API 設計・内部構造・CI マトリクス
+- [詳細設計書](https://github.com/nightmarewalker/D-MemFS/blob/main/docs/design/DetailedDesignSpec.md) — コンポーネント設計と実装意図
+- [テスト詳細設計書](https://github.com/nightmarewalker/D-MemFS/blob/main/docs/design/DetailedDesignSpec_test.md) — テストケース一覧と疑似コード
 
 ---
 
@@ -373,7 +373,7 @@ def test_write_read(mfs):
 | large_stream_write_read | **1 438** | 7 594 | 1 931 |
 | many_files_random_read | 777 | 163 | 4 745 |
 
-MFS は小ファイルワークロードでわずかなオーバーヘッドがありますが、大容量ストリームやランダムアクセスパターンでは `BytesIO` と比べて大幅に高速です。詳細は `BENCHMARK.md` および [benchmark_current_result.md](./benchmarks/results/benchmark_current_result.md) を参照してください。
+MFS は小ファイルワークロードでわずかなオーバーヘッドがありますが、大容量ストリームやランダムアクセスパターンでは `BytesIO` と比べて大幅に高速です。詳細は `BENCHMARK.md` および [benchmark_current_result.md](https://github.com/nightmarewalker/D-MemFS/blob/main/benchmarks/results/benchmark_current_result.md) を参照してください。
 
 > **注意:** 上記の `tempfile` の結果は、システムの TEMP ディレクトリが RAM ディスク上にある環境で計測したものです。物理 SSD/HDD 環境では `tempfile` の数値は大幅に遅くなります。
 
