@@ -56,3 +56,6 @@ Article/
 
 # Backup files
 *.bak
+
+# trush
+tmp/

@@ -2,193 +2,193 @@
   {
     "backend": "MFS",
     "case": "small_files_rw",
-    "seconds_mean": 0.034442399999534246,
-    "seconds_min": 0.034442399999534246,
-    "seconds_max": 0.034442399999534246,
-    "peak_kib_mean": 519.9130859375
+    "seconds_mean": 0.031082680000690744,
+    "seconds_min": 0.03050760000041919,
+    "seconds_max": 0.032199900000705384,
+    "peak_kib_mean": 512.2427734375
   },
   {
     "backend": "BytesIO(dict)",
     "case": "small_files_rw",
-    "seconds_mean": 0.004511000001002685,
-    "seconds_min": 0.004511000001002685,
-    "seconds_max": 0.004511000001002685,
+    "seconds_mean": 0.0059847999997145965,
+    "seconds_min": 0.004038800001580967,
+    "seconds_max": 0.010352400000556372,
     "peak_kib_mean": 1261.056640625
   },
   {
     "backend": "PyFilesystem2(MemoryFS)",
     "case": "small_files_rw",
-    "seconds_mean": 0.7926097999988997,
-    "seconds_min": 0.7926097999988997,
-    "seconds_max": 0.7926097999988997,
-    "peak_kib_mean": 8640.7626953125
+    "seconds_mean": 0.03223979999966105,
+    "seconds_min": 0.031514799997239606,
+    "seconds_max": 0.03385870000056457,
+    "peak_kib_mean": 1417.9810546875
   },
   {
     "backend": "tempfile",
     "case": "small_files_rw",
-    "seconds_mean": 0.16440429999966,
-    "seconds_min": 0.16440429999966,
-    "seconds_max": 0.16440429999966,
-    "peak_kib_mean": 29.18359375
+    "seconds_mean": 0.15938035999934072,
+    "seconds_min": 0.15703489999941667,
+    "seconds_max": 0.16191469999830588,
+    "peak_kib_mean": 25.79296875
   },
   {
     "backend": "MFS",
     "case": "stream_write_read",
-    "seconds_mean": 0.06371650000073714,
-    "seconds_min": 0.06371650000073714,
-    "seconds_max": 0.06371650000073714,
-    "peak_kib_mean": 34463.0068359375
+    "seconds_mean": 0.06641507999956957,
+    "seconds_min": 0.06513750000158325,
+    "seconds_max": 0.06844899999850895,
+    "peak_kib_mean": 34462.8974609375
   },
   {
     "backend": "BytesIO",
     "case": "stream_write_read",
-    "seconds_mean": 0.051001699999687844,
-    "seconds_min": 0.051001699999687844,
-    "seconds_max": 0.051001699999687844,
+    "seconds_mean": 0.05566695999877993,
+    "seconds_min": 0.052941900001314934,
+    "seconds_max": 0.05837759999849368,
     "peak_kib_mean": 18064.20703125
   },
   {
     "backend": "PyFilesystem2(MemoryFS)",
     "case": "stream_write_read",
-    "seconds_mean": 0.060418299999582814,
-    "seconds_min": 0.060418299999582814,
-    "seconds_max": 0.060418299999582814,
-    "peak_kib_mean": 34450.97265625
+    "seconds_mean": 0.06427875999943353,
+    "seconds_min": 0.06353519999902346,
+    "seconds_max": 0.06576920000225073,
+    "peak_kib_mean": 34450.90234375
   },
   {
     "backend": "tempfile",
     "case": "stream_write_read",
-    "seconds_mean": 0.016768299999966985,
-    "seconds_min": 0.016768299999966985,
-    "seconds_max": 0.016768299999966985,
-    "peak_kib_mean": 16457.314453125
+    "seconds_mean": 0.01720061999949394,
+    "seconds_min": 0.01669920000131242,
+    "seconds_max": 0.01818029999776627,
+    "peak_kib_mean": 16457.275390625
   },
   {
     "backend": "MFS",
     "case": "random_access_rw",
-    "seconds_mean": 0.024124100000335602,
-    "seconds_min": 0.024124100000335602,
-    "seconds_max": 0.024124100000335602,
-    "peak_kib_mean": 49221.8662109375
+    "seconds_mean": 0.025173579999682262,
+    "seconds_min": 0.025003899998409906,
+    "seconds_max": 0.025636200000008103,
+    "peak_kib_mean": 49221.6271484375
   },
   {
     "backend": "BytesIO",
     "case": "random_access_rw",
-    "seconds_mean": 0.05252379999910772,
-    "seconds_min": 0.05252379999910772,
-    "seconds_max": 0.05252379999910772,
+    "seconds_mean": 0.058797739999863555,
+    "seconds_min": 0.054667000000335975,
+    "seconds_max": 0.06307980000201496,
     "peak_kib_mean": 18067.1953125
   },
   {
     "backend": "PyFilesystem2(MemoryFS)",
     "case": "random_access_rw",
-    "seconds_mean": 0.0652700000009645,
-    "seconds_min": 0.0652700000009645,
-    "seconds_max": 0.0652700000009645,
-    "peak_kib_mean": 34453.76171875
+    "seconds_mean": 0.07053062000049977,
+    "seconds_min": 0.06943559999854187,
+    "seconds_max": 0.07169580000118003,
+    "peak_kib_mean": 34453.64609375
   },
   {
     "backend": "tempfile",
     "case": "random_access_rw",
-    "seconds_mean": 0.026998400000593392,
-    "seconds_min": 0.026998400000593392,
-    "seconds_max": 0.026998400000593392,
-    "peak_kib_mean": 16460.103515625
+    "seconds_mean": 0.026006799999595386,
+    "seconds_min": 0.02543859999786946,
+    "seconds_max": 0.026775999998790212,
+    "peak_kib_mean": 16460.019140625
   },
   {
     "backend": "MFS",
     "case": "large_stream_write_read",
-    "seconds_mean": 1.4383842999995977,
-    "seconds_min": 1.4383842999995977,
-    "seconds_max": 1.4383842999995977,
-    "peak_kib_mean": 4202.5478515625
+    "seconds_mean": 0.3454048200008401,
+    "seconds_min": 0.3358299999999872,
+    "seconds_max": 0.3493538000002445,
+    "peak_kib_mean": 4122.8783203125
   },
   {
     "backend": "BytesIO",
     "case": "large_stream_write_read",
-    "seconds_mean": 7.593842700000096,
-    "seconds_min": 7.593842700000096,
-    "seconds_max": 7.593842700000096,
-    "peak_kib_mean": 2164224.310546875
+    "seconds_mean": 2.0562121200004184,
+    "seconds_min": 2.032514300000912,
+    "seconds_max": 2.0770204000000376,
+    "peak_kib_mean": 591744.306640625
   },
   {
     "backend": "PyFilesystem2(MemoryFS)",
     "case": "large_stream_write_read",
-    "seconds_mean": 7.659311399998842,
-    "seconds_min": 7.659311399998842,
-    "seconds_max": 7.659311399998842,
-    "peak_kib_mean": 2164227.0888671875
+    "seconds_mean": 2.085906340000656,
+    "seconds_min": 2.071876699999848,
+    "seconds_max": 2.1208244000008563,
+    "peak_kib_mean": 591746.9216796875
   },
   {
     "backend": "tempfile",
     "case": "large_stream_write_read",
-    "seconds_mean": 1.9308694999999716,
-    "seconds_min": 1.9308694999999716,
-    "seconds_max": 1.9308694999999716,
-    "peak_kib_mean": 3081.6884765625
+    "seconds_mean": 0.4868510999986029,
+    "seconds_min": 0.47448289999738336,
+    "seconds_max": 0.49788819999957923,
+    "peak_kib_mean": 3081.5564453125
   },
   {
     "backend": "MFS",
     "case": "many_files_random_read",
-    "seconds_mean": 0.7767039999998815,
-    "seconds_min": 0.7767039999998815,
-    "seconds_max": 0.7767039999998815,
-    "peak_kib_mean": 17132.296875
+    "seconds_mean": 0.8199492600011581,
+    "seconds_min": 0.7924343000013323,
+    "seconds_max": 0.860533300001407,
+    "peak_kib_mean": 17287.46875
   },
   {
     "backend": "BytesIO",
     "case": "many_files_random_read",
-    "seconds_mean": 0.16301879999991797,
-    "seconds_min": 0.16301879999991797,
-    "seconds_max": 0.16301879999991797,
+    "seconds_mean": 0.17118585999996866,
+    "seconds_min": 0.16608759999871836,
+    "seconds_max": 0.17635280000104103,
     "peak_kib_mean": 42034.1435546875
   },
   {
     "backend": "PyFilesystem2(MemoryFS)",
     "case": "many_files_random_read",
-    "seconds_mean": 0.8345414000013989,
-    "seconds_min": 0.8345414000013989,
-    "seconds_max": 0.8345414000013989,
-    "peak_kib_mean": 47166.1513671875
+    "seconds_mean": 0.8499167999994824,
+    "seconds_min": 0.830758700001752,
+    "seconds_max": 0.8938041000001249,
+    "peak_kib_mean": 47165.8873046875
   },
   {
     "backend": "tempfile",
     "case": "many_files_random_read",
-    "seconds_mean": 4.745311900000161,
-    "seconds_min": 4.745311900000161,
-    "seconds_max": 4.745311900000161,
-    "peak_kib_mean": 795.3916015625
+    "seconds_mean": 4.686515199999849,
+    "seconds_min": 4.668544399999519,
+    "seconds_max": 4.708871200000431,
+    "peak_kib_mean": 795.2353515625
   },
   {
     "backend": "MFS",
     "case": "deep_tree_read",
-    "seconds_mean": 0.14828560000023572,
-    "seconds_min": 0.14828560000023572,
-    "seconds_max": 0.14828560000023572,
-    "peak_kib_mean": 26.884765625
+    "seconds_mean": 0.14462487999990117,
+    "seconds_min": 0.1411389999993844,
+    "seconds_max": 0.1514982999979111,
+    "peak_kib_mean": 18.986328125
   },
   {
     "backend": "BytesIO",
     "case": "deep_tree_read",
-    "seconds_mean": 0.002147999999579042,
-    "seconds_min": 0.002147999999579042,
-    "seconds_max": 0.002147999999579042,
+    "seconds_mean": 0.002125820000219392,
+    "seconds_min": 0.002087600001686951,
+    "seconds_max": 0.0021908000016992446,
     "peak_kib_mean": 4.0419921875
   },
   {
     "backend": "PyFilesystem2(MemoryFS)",
     "case": "deep_tree_read",
-    "seconds_mean": 0.11113870000008319,
-    "seconds_min": 0.11113870000008319,
-    "seconds_max": 0.11113870000008319,
-    "peak_kib_mean": 38.9365234375
+    "seconds_mean": 0.11316510000033304,
+    "seconds_min": 0.11219479999999749,
+    "seconds_max": 0.11427809999804595,
+    "peak_kib_mean": 38.7568359375
   },
   {
     "backend": "tempfile",
     "case": "deep_tree_read",
-    "seconds_mean": 0.28473249999842665,
-    "seconds_min": 0.28473249999842665,
-    "seconds_max": 0.28473249999842665,
-    "peak_kib_mean": 24.681640625
+    "seconds_mean": 0.2696230800014746,
+    "seconds_min": 0.2662434000012581,
+    "seconds_max": 0.27333200000066427,
+    "peak_kib_mean": 21.351953125
   }
 ]
