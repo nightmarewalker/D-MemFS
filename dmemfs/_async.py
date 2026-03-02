@@ -70,6 +70,7 @@ class AsyncMemoryFileSystem:
         promotion_hard_limit: int | None = None,
         max_nodes: int | None = None,
         default_storage: str = "auto",
+        default_lock_timeout: float | None = 30.0,
     ) -> None:
         self._sync = MemoryFileSystem(
             max_quota=max_quota,
@@ -77,6 +78,7 @@ class AsyncMemoryFileSystem:
             promotion_hard_limit=promotion_hard_limit,
             max_nodes=max_nodes,
             default_storage=default_storage,
+            default_lock_timeout=default_lock_timeout,
         )
 
     async def open(

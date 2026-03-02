@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `IMemoryFile._bulk_load(data)` method for internal use by `import_tree()` / `_deep_copy_subtree()` (improves encapsulation)
 
 ### Changed
+- `MemoryFileSystem.__init__` and `AsyncMemoryFileSystem.__init__` accept a new `default_lock_timeout: float | None = 30.0` parameter. `open()` now resolves `lock_timeout=None` to this value, preventing `_global_lock` from being held indefinitely when a file lock cannot be acquired. Pass `default_lock_timeout=None` to restore the previous infinite-wait behaviour.
 - **[BREAKING]** `MFSStatResult.is_sequential` field removed. This internal implementation detail is no longer exposed in the public API.
 - **[BREAKING]** Package renamed from `memory-file-system` / `memory_file_system` to `D-MemFS` / `dmemfs`. Update imports: `from dmemfs import ...`
 - `stat()` directory support: previously raised `IsADirectoryError`; behavior unchanged in this release, but `is_dir` field added to `MFSStatResult` in future
@@ -30,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clarified that `stat()` is file-only and that `MFSStatResult.is_sequential` is implementation detail
 
 ### Tests
+- Added 3 tests to `test_concurrency.py` for `default_lock_timeout`: contention raises `BlockingIOError`, explicit `lock_timeout` overrides the default, and `default_lock_timeout=None` waits indefinitely until lock is released
 - Added tests for `is_file()`, handle file-like methods, async wrappers, and `import_tree()` parent-dir rollback
 
 ## [0.2.0] - 2026-02-26

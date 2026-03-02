@@ -72,6 +72,7 @@ class MemoryFileSystem:
         promotion_hard_limit: int | None = None,
         max_nodes: int | None = None,
         default_storage: str = "auto",
+        default_lock_timeout: float | None = 30.0,
     ) -> None:
         if default_storage not in ("auto", "sequential", "random_access"):
             raise ValueError(
@@ -88,6 +89,7 @@ class MemoryFileSystem:
         self._promotion_hard_limit: int | None = promotion_hard_limit
         self._max_nodes: int | None = max_nodes
         self._default_storage: str = default_storage
+        self._default_lock_timeout: float | None = default_lock_timeout
         self._nodes: dict[int, Node] = {}
         self._next_node_id: int = 0
         # Root directory
@@ -164,6 +166,7 @@ class MemoryFileSystem:
         npath = self._np(path)
         handle = None
         fnode: FileNode | None = None
+        effective_timeout = lock_timeout if lock_timeout is not None else self._default_lock_timeout
         with self._global_lock:
             node = self._resolve_path(npath)
             if node is not None and isinstance(node, DirNode):
@@ -173,18 +176,18 @@ class MemoryFileSystem:
             if mode == "rb":
                 if fnode is None:
                     raise FileNotFoundError(f"No such file: '{path}'")
-                fnode._rw_lock.acquire_read(timeout=lock_timeout)
+                fnode._rw_lock.acquire_read(timeout=effective_timeout)
                 handle = MemoryFileHandle(self, fnode, npath, mode)
 
             elif mode == "wb":
                 if fnode is None:
                     # New file: _create_file already sets timestamps
                     fnode = self._create_file(npath)
-                    fnode._rw_lock.acquire_write(timeout=lock_timeout)
+                    fnode._rw_lock.acquire_write(timeout=effective_timeout)
                     handle = MemoryFileHandle(self, fnode, npath, mode)
                 else:
                     # Existing file: truncate and update metadata
-                    fnode._rw_lock.acquire_write(timeout=lock_timeout)
+                    fnode._rw_lock.acquire_write(timeout=effective_timeout)
                     fnode.storage.truncate(0, self._quota)
                     fnode.generation += 1
                     fnode.modified_at = time.time()
@@ -193,20 +196,20 @@ class MemoryFileSystem:
             elif mode == "ab":
                 if fnode is None:
                     fnode = self._create_file(npath)
-                fnode._rw_lock.acquire_write(timeout=lock_timeout)
+                fnode._rw_lock.acquire_write(timeout=effective_timeout)
                 handle = MemoryFileHandle(self, fnode, npath, mode, is_append=True)
 
             elif mode == "r+b":
                 if fnode is None:
                     raise FileNotFoundError(f"No such file: '{path}'")
-                fnode._rw_lock.acquire_write(timeout=lock_timeout)
+                fnode._rw_lock.acquire_write(timeout=effective_timeout)
                 handle = MemoryFileHandle(self, fnode, npath, mode)
 
             elif mode == "xb":
                 if fnode is not None:
                     raise FileExistsError(f"File exists: '{path}'")
                 fnode = self._create_file(npath)
-                fnode._rw_lock.acquire_write(timeout=lock_timeout)
+                fnode._rw_lock.acquire_write(timeout=effective_timeout)
                 handle = MemoryFileHandle(self, fnode, npath, mode)
 
             if preallocate > 0 and handle is not None and fnode is not None:

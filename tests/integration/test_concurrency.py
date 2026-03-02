@@ -116,3 +116,61 @@ def test_concurrent_stat_during_writes(mfs):
     stop.set()
     assert not errors, f"Concurrent stat/write errors: {errors}"
 
+
+# --- default_lock_timeout tests ---
+
+
+def test_default_lock_timeout_raises_on_contention():
+    """default_lock_timeout が有限値のとき、ロック競合で BlockingIOError が送出される。"""
+    mfs = MemoryFileSystem(max_quota=1 * 1024 * 1024, default_lock_timeout=0.05)
+    with mfs.open("/f.bin", "wb") as f:
+        f.write(b"data")
+
+    with ThreadedLockHolder(mfs, "/f.bin", "wb"):
+        with pytest.raises(BlockingIOError):
+            mfs.open("/f.bin", "wb")  # lock_timeout=None → uses default_lock_timeout=0.05
+
+
+def test_explicit_lock_timeout_overrides_default():
+    """open() に明示した lock_timeout がインスタンスのデフォルト値より優先される。"""
+    mfs = MemoryFileSystem(max_quota=1 * 1024 * 1024, default_lock_timeout=60.0)
+    with mfs.open("/f.bin", "wb") as f:
+        f.write(b"data")
+
+    with ThreadedLockHolder(mfs, "/f.bin", "wb"):
+        with pytest.raises(BlockingIOError):
+            mfs.open("/f.bin", "wb", lock_timeout=0.0)  # 明示した 0.0 が使われる
+
+
+def test_default_lock_timeout_none_waits_for_lock():
+    """default_lock_timeout=None のとき、ロック解放まで無期限待機して取得できる。"""
+    mfs = MemoryFileSystem(max_quota=1 * 1024 * 1024, default_lock_timeout=None)
+    with mfs.open("/f.bin", "wb") as f:
+        f.write(b"data")
+
+    holder_ready = threading.Event()
+    holder_release = threading.Event()
+    acquired_after_wait = threading.Event()
+
+    def holder():
+        with mfs.open("/f.bin", "wb") as h:
+            holder_ready.set()
+            holder_release.wait(timeout=5.0)
+            h.write(b"held")
+
+    def waiter():
+        mfs.open("/f.bin", "wb").close()  # default_lock_timeout=None → 無期限待機
+        acquired_after_wait.set()
+
+    t_holder = threading.Thread(target=holder, daemon=True)
+    t_waiter = threading.Thread(target=waiter, daemon=True)
+
+    t_holder.start()
+    holder_ready.wait(timeout=3.0)
+    t_waiter.start()
+
+    holder_release.set()
+    assert acquired_after_wait.wait(timeout=5.0), "waiter did not acquire lock after holder released"
+    t_holder.join(timeout=3.0)
+    t_waiter.join(timeout=3.0)
+
