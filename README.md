@@ -16,13 +16,16 @@ Languages: [English](https://github.com/nightmarewalker/D-MemFS/blob/main/README
 `MemoryFileSystem` gives you a fully isolated filesystem-like workspace inside a Python process.
 
 - Hard quota (`MFSQuotaExceededError`) to reject oversized writes before OOM
+- Memory Guard to detect physical RAM exhaustion before it causes OOM kills
 - Hierarchical directories and multi-file operations (`import_tree`, `copy_tree`, `move`)
 - File-level RW locking + global structure lock for thread-safe operations
 - Free-threaded Python compatible (`PYTHON_GIL=0`) — stress-tested under 50-thread contention
 - Async wrapper (`AsyncMemoryFileSystem`) powered by `asyncio.to_thread`
 - Zero runtime dependencies (standard library only)
+- **No admin/root privileges required** — works on locked-down CI runners, containers, and shared machines where OS-level RAM disks are not an option
+- **346 tests, 97% coverage** across 3 OS (Linux / Windows / macOS) × 3 Python versions (3.11–3.13, including free-threaded 3.13t)
 
-This is useful when `io.BytesIO` is too primitive (single buffer), and OS-level RAM disks/tmpfs are impractical (permissions, container policy, Windows driver friction).
+This is useful when `io.BytesIO` is too primitive (single buffer), and OS-level RAM disks/tmpfs are impractical (permissions, container policy, Windows driver friction). Ideal for **CI pipeline acceleration** — eliminate disk I/O from test suites and data processing without any infrastructure changes.
 
 ---
 

@@ -16,13 +16,16 @@
 `MemoryFileSystem` は、Pythonプロセス内に完全に隔離された filesystem-like ワークスペースを提供します。
 
 - ハードクォータ（`MFSQuotaExceededError`）で OOM 前に過大書き込みを拒否
+- メモリーガードで物理メモリ枯渇による OOM キルを事前に検知
 - ディレクトリ階層と複数ファイル操作（`import_tree`, `copy_tree`, `move`）
 - ファイル単位RWロック + 構造用グローバルロックでスレッドセーフ
 - フリースレッド Python 対応（`PYTHON_GIL=0`）— 50スレッド競合下でのストレステスト済み
 - `asyncio.to_thread` ベースの Async ラッパー（`AsyncMemoryFileSystem`）
 - ランタイム依存ゼロ（標準ライブラリのみ）
+- **管理者権限不要** — OS レベルの RAM ディスクが使えない CI ランナー、コンテナ、共有マシンでもそのまま動作
+- **346テスト、カバレッジ97%** — 3 OS（Linux / Windows / macOS）× 3 Python バージョン（3.11〜3.13、フリースレッド 3.13t 含む）で検証済み
 
-`io.BytesIO` が単一バッファで不足する場合や、OSレベルのRAMディスク/tmpfsが使いにくい環境（権限制約、コンテナポリシー、Windowsの運用負荷）で有効です。
+`io.BytesIO` が単一バッファで不足する場合や、OSレベルのRAMディスク/tmpfsが使いにくい環境（権限制約、コンテナポリシー、Windowsの運用負荷）で有効です。**CI パイプラインの高速化**にも最適——インフラ変更なしにテストやデータ処理からディスク I/O を排除できます。
 
 ---
 
