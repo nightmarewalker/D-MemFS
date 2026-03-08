@@ -78,11 +78,55 @@ except MFSQuotaExceededError as e:
 - `default_storage` (default `"auto"`): storage backend for new files — `"auto"` / `"sequential"` / `"random_access"`
 - `promotion_hard_limit` (default `None`): byte threshold above which Sequential→RandomAccess auto-promotion is suppressed (`None` uses the built-in 512 MiB limit)
 - `chunk_overhead_override` (default `None`): override the per-chunk overhead estimate used for quota accounting
+- `default_lock_timeout` (default `30.0`): default timeout in seconds for file-lock acquisition during `open()`. Use `None` to wait indefinitely.
+- `memory_guard` (default `"none"`): physical memory protection mode — `"none"` / `"init"` / `"per_write"`
+- `memory_guard_action` (default `"warn"`): action when the guard triggers — `"warn"` (`ResourceWarning`) / `"raise"` (`MemoryError`)
+- `memory_guard_interval` (default `1.0`): minimum seconds between OS memory queries (`"per_write"` only)
 
 > **Note:** The `BytesIO` returned by `export_as_bytesio()` is outside quota management.
 > Exporting large files may consume significant process memory beyond the configured quota limit.
 
+> **Note — Quota and free-threaded Python:**
+> The per-chunk overhead estimate used for quota accounting is calibrated at import time
+> via `sys.getsizeof()`. Free-threaded Python (3.13t, `PYTHON_GIL=0`) has larger object
+> headers than the standard build, so `CHUNK_OVERHEAD_ESTIMATE` is higher (~117 bytes vs
+> ~93 bytes on CPython 3.13). This means the same `max_quota` yields slightly less
+> effective storage capacity on free-threaded builds, especially for workloads with many
+> small files or small appends. This is not a bug — it reflects real memory consumption.
+> To ensure consistent behaviour across builds, use `chunk_overhead_override` to pin the
+> value, or inspect `stats()["overhead_per_chunk_estimate"]` at runtime.
+
 Supported binary modes: `rb`, `wb`, `ab`, `r+b`, `xb`
+
+## Memory Guard
+
+MFS enforces a logical quota, but that quota can still be configured larger than the
+currently available physical RAM. `memory_guard` provides an optional safety net.
+
+```python
+from dmemfs import MemoryFileSystem
+
+# Warn if max_quota exceeds available RAM
+mfs = MemoryFileSystem(max_quota=8 * 1024**3, memory_guard="init")
+
+# Raise MemoryError before writes when RAM is insufficient
+mfs = MemoryFileSystem(
+    max_quota=8 * 1024**3,
+    memory_guard="per_write",
+    memory_guard_action="raise",
+)
+```
+
+| Mode | Initialization | Each Write | Overhead |
+|---|---|---|---|
+| `"none"` | — | — | Zero |
+| `"init"` | Check once | — | Negligible |
+| `"per_write"` | Check once | Cached check | About 1 OS call/sec |
+
+When `memory_guard_action="warn"`, the guard emits `ResourceWarning` and allows the operation to continue.
+When `memory_guard_action="raise"`, the guard rejects the operation with `MemoryError` before the actual allocation path.
+
+`AsyncMemoryFileSystem` accepts the same constructor parameters and forwards them to the synchronous implementation.
 
 ### `MemoryFileHandle`
 
@@ -362,8 +406,9 @@ def test_write_read(mfs):
 Design documents (Japanese):
 
 - [Architecture Spec v13](https://github.com/nightmarewalker/D-MemFS/blob/main/docs/design/spec_v13.md) — API design, internal structure, CI matrix
-- [Detailed Design Spec](https://github.com/nightmarewalker/D-MemFS/blob/main/docs/design/DetailedDesignSpec.md) — component-level design and rationale
-- [Test Design Spec](https://github.com/nightmarewalker/D-MemFS/blob/main/docs/design/DetailedDesignSpec_test.md) — test case table and pseudocode
+- [Architecture Spec v14](https://github.com/nightmarewalker/D-MemFS/blob/main/docs/design/spec_v14.md) — MemoryGuard-integrated architecture spec
+- [Detailed Design Spec v2](https://github.com/nightmarewalker/D-MemFS/blob/main/docs/design/DetailedDesignSpec_v2.md) — component-level design and rationale
+- [Test Design Spec v2](https://github.com/nightmarewalker/D-MemFS/blob/main/docs/design/DetailedDesignSpec_test_v2.md) — test case table and pseudocode
 
 > These documents are written in Japanese and serve as internal design references.
 

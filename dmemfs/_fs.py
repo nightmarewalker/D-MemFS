@@ -16,6 +16,7 @@ from ._file import (
 )
 from ._handle import MemoryFileHandle
 from ._lock import ReadWriteLock
+from ._memory_guard import create_memory_guard
 from ._path import normalize_path
 from ._quota import QuotaManager
 from ._typing import MFSStatResult, MFSStats
@@ -73,6 +74,9 @@ class MemoryFileSystem:
         max_nodes: int | None = None,
         default_storage: str = "auto",
         default_lock_timeout: float | None = 30.0,
+        memory_guard: str = "none",
+        memory_guard_action: str = "warn",
+        memory_guard_interval: float = 1.0,
     ) -> None:
         if default_storage not in ("auto", "sequential", "random_access"):
             raise ValueError(
@@ -81,6 +85,11 @@ class MemoryFileSystem:
             )
         self._quota = QuotaManager(max_quota)
         self._global_lock = threading.RLock()
+        self._memory_guard = create_memory_guard(
+            mode=memory_guard,
+            action=memory_guard_action,
+            interval=memory_guard_interval,
+        )
         self._chunk_overhead: int = (
             chunk_overhead_override
             if chunk_overhead_override is not None
@@ -94,6 +103,7 @@ class MemoryFileSystem:
         self._next_node_id: int = 0
         # Root directory
         self._root = self._alloc_dir()
+        self._memory_guard.check_init(max_quota)
 
     # -- node allocation helpers --
 
@@ -101,8 +111,10 @@ class MemoryFileSystem:
         """Create a new file storage object according to default_storage setting."""
         if self._default_storage == "random_access":
             return RandomAccessMemoryFile()
-        allow_promotion = (self._default_storage != "sequential")
-        return SequentialMemoryFile(self._chunk_overhead, self._promotion_hard_limit, allow_promotion)
+        allow_promotion = self._default_storage != "sequential"
+        return SequentialMemoryFile(
+            self._chunk_overhead, self._promotion_hard_limit, allow_promotion
+        )
 
     def _alloc_dir(self) -> DirNode:
         if self._max_nodes is not None and len(self._nodes) >= self._max_nodes:
@@ -188,7 +200,7 @@ class MemoryFileSystem:
                 else:
                     # Existing file: truncate and update metadata
                     fnode._rw_lock.acquire_write(timeout=effective_timeout)
-                    fnode.storage.truncate(0, self._quota)
+                    fnode.storage.truncate(0, self._quota, self._memory_guard)
                     fnode.generation += 1
                     fnode.modified_at = time.time()
                     handle = MemoryFileHandle(self, fnode, npath, mode)
@@ -217,7 +229,10 @@ class MemoryFileSystem:
                 if preallocate > current:
                     try:
                         n, promoted, old_quota = fnode.storage.write_at(
-                            current, bytes(preallocate - current), self._quota
+                            current,
+                            bytes(preallocate - current),
+                            self._quota,
+                            self._memory_guard,
                         )
                         if promoted is not None:
                             fnode.storage = promoted
@@ -504,9 +519,7 @@ class MemoryFileSystem:
             fnode._rw_lock.release_read()
         return io.BytesIO(data)
 
-    def export_tree(
-        self, prefix: str = "/", only_dirty: bool = False
-    ) -> dict[str, bytes]:
+    def export_tree(self, prefix: str = "/", only_dirty: bool = False) -> dict[str, bytes]:
         return dict(self.iter_export_tree(prefix=prefix, only_dirty=only_dirty))
 
     def iter_export_tree(
@@ -553,11 +566,7 @@ class MemoryFileSystem:
             # Check for open files
             for npath in normalized:
                 node = self._resolve_path(npath)
-                if (
-                    node is not None
-                    and isinstance(node, FileNode)
-                    and node._rw_lock.is_locked
-                ):
+                if node is not None and isinstance(node, FileNode) and node._rw_lock.is_locked:
                     raise BlockingIOError(f"Cannot import: file is open: '{npath}'")
 
             # Calculate quota
@@ -581,6 +590,7 @@ class MemoryFileSystem:
                 avail = self._quota.free
                 if net > avail:
                     raise MFSQuotaExceededError(requested=net, available=avail)
+                self._memory_guard.check_before_write(net)
 
             written_npaths: list[str] = []
             new_fnodes: dict[str, FileNode] = {}
@@ -590,7 +600,14 @@ class MemoryFileSystem:
                 for npath, data in normalized.items():
                     self._ensure_parents(npath, created_dirs)
                     storage = self._create_storage()
-                    storage._bulk_load(data)
+                    try:
+                        storage._bulk_load(data)
+                    except MemoryError:
+                        raise MemoryError(
+                            f"OS memory allocation failed during import_tree "
+                            f"(file: '{npath}', size: {len(data):,} bytes). "
+                            "Consider reducing max_quota or using memory_guard='init'."
+                        ) from None
                     fnode = self._alloc_file(storage)
                     fnode.generation = 0
                     # Insert into parent
@@ -645,9 +662,7 @@ class MemoryFileSystem:
             if node.node_id in self._nodes:
                 del self._nodes[node.node_id]
 
-    def _ensure_parents(
-        self, npath: str, created_dirs: list[str] | None = None
-    ) -> None:
+    def _ensure_parents(self, npath: str, created_dirs: list[str] | None = None) -> None:
         parent_path = posixpath.dirname(npath) or "/"
         if self._resolve_path(parent_path) is None:
             self._makedirs(parent_path, created_dirs)
@@ -670,7 +685,9 @@ class MemoryFileSystem:
                 src_node._rw_lock.release_read()
             fnode = self._create_file(ndst)
             if data:
-                n, promoted, old_quota = fnode.storage.write_at(0, data, self._quota)
+                n, promoted, old_quota = fnode.storage.write_at(
+                    0, data, self._quota, self._memory_guard
+                )
                 if promoted is not None:
                     fnode.storage = promoted
                     self._quota.release(old_quota)
@@ -696,6 +713,7 @@ class MemoryFileSystem:
                 avail = self._quota.free
                 if total_data > avail:
                     raise MFSQuotaExceededError(requested=total_data, available=avail)
+                self._memory_guard.check_before_write(total_data)
             # Deep copy the subtree with rollback on failure
             dst_parent, dst_name = dst_pinfo
             created_node_ids: list[int] = []
@@ -709,9 +727,7 @@ class MemoryFileSystem:
             if total_data > 0:
                 self._quota._force_reserve(total_data)
 
-    def _deep_copy_subtree(
-        self, node: Node, created_node_ids: list[int]
-    ) -> Node:
+    def _deep_copy_subtree(self, node: Node, created_node_ids: list[int]) -> Node:
         if isinstance(node, FileNode):
             # Read data under read lock
             node._rw_lock.acquire_read()
@@ -827,10 +843,7 @@ class MemoryFileSystem:
                     if idx + 1 < len(parts):
                         # ** before more parts: match file against next part
                         next_part = parts[idx + 1]
-                        if (
-                            fnmatch.fnmatch(name, next_part)
-                            and idx + 1 == len(parts) - 1
-                        ):
+                        if fnmatch.fnmatch(name, next_part) and idx + 1 == len(parts) - 1:
                             results.append(child_path)
                     else:
                         # ** at end: file matches
@@ -848,9 +861,7 @@ class MemoryFileSystem:
                 elif isinstance(child, DirNode):
                     self._glob_match(child, child_path, parts, idx + 1, results)
 
-    def _collect_all_paths(
-        self, node: DirNode, current_path: str, results: list[str]
-    ) -> None:
+    def _collect_all_paths(self, node: DirNode, current_path: str, results: list[str]) -> None:
         with self._global_lock:
             snapshot = list(node.children.items())
         for name, child_id in snapshot:

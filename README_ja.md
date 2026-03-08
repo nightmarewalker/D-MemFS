@@ -78,11 +78,55 @@ except MFSQuotaExceededError as e:
 - `default_storage`（デフォルト `"auto"`）: 新規ファイルのストレージバックエンド — `"auto"` / `"sequential"` / `"random_access"`
 - `promotion_hard_limit`（デフォルト `None`）: Sequential→RandomAccess 自動昇格を抑制するバイト閾値（`None` は内蔵の 512 MiB 上限を使用）
 - `chunk_overhead_override`（デフォルト `None`）: クォータ計算に使うチャンクオーバーヘッド見積もりの上書き値
+- `default_lock_timeout`（デフォルト `30.0`）: `open()` 時のファイルロック取得に使う既定タイムアウト秒数。`None` を指定すると無期限待機
+- `memory_guard`（デフォルト `"none"`）: 物理メモリ保護モード — `"none"` / `"init"` / `"per_write"`
+- `memory_guard_action`（デフォルト `"warn"`）: ガード発火時の動作 — `"warn"`（`ResourceWarning`） / `"raise"`（`MemoryError`）
+- `memory_guard_interval`（デフォルト `1.0`）: OS メモリ問い合わせの最小間隔秒数（`"per_write"` のみ）
 
 > **注意:** `export_as_bytesio()` が返す `BytesIO` オブジェクトはクォータ管理の対象外です。
 > 大きなファイルのエクスポートでは、設定されたクォータ上限を超えるプロセスメモリを消費する可能性があります。
 
+> **注意 — クォータとフリースレッド Python:**
+> クォータ計算に使うチャンクオーバーヘッド推定値は、インポート時に `sys.getsizeof()` で
+> 実測されます。フリースレッド Python（3.13t、`PYTHON_GIL=0`）は通常ビルドよりオブジェクト
+> ヘッダが大きいため、`CHUNK_OVERHEAD_ESTIMATE` が増加します（CPython 3.13 で約 93 バイト
+> → 約 117 バイト）。そのため、同じ `max_quota` でもフリースレッドビルドでは実効容量がやや
+> 減少します。特に小さなファイルや小さな追記を大量に扱うワークロードで顕著です。
+> これはバグではなく、実際のメモリ消費を正しく反映した動作です。
+> ビルド間で一貫した動作が必要な場合は、`chunk_overhead_override` で値を固定するか、
+> 実行時に `stats()["overhead_per_chunk_estimate"]` を確認してください。
+
 対応するバイナリモード: `rb`, `wb`, `ab`, `r+b`, `xb`
+
+## Memory Guard
+
+MFS は論理クォータを強制しますが、その値を現在の物理 RAM より大きく設定することはできます。
+`memory_guard` は、そのギャップを埋めるためのオプションの安全装置です。
+
+```python
+from dmemfs import MemoryFileSystem
+
+# 初期化時に max_quota と物理 RAM の関係を警告
+mfs = MemoryFileSystem(max_quota=8 * 1024**3, memory_guard="init")
+
+# 書き込み前に RAM 不足なら MemoryError を送出
+mfs = MemoryFileSystem(
+    max_quota=8 * 1024**3,
+    memory_guard="per_write",
+    memory_guard_action="raise",
+)
+```
+
+| モード | 初期化時 | 各書き込み時 | オーバーヘッド |
+|---|---|---|---|
+| `"none"` | なし | なし | ゼロ |
+| `"init"` | 1回だけ確認 | なし | ごく小さい |
+| `"per_write"` | 1回だけ確認 | キャッシュ付き確認 | おおむね 1 秒あたり 1 回の OS 問い合わせ |
+
+`memory_guard_action="warn"` では `ResourceWarning` を出したうえで処理を継続します。
+`memory_guard_action="raise"` では、実際のメモリ確保に入る前に `MemoryError` で拒否します。
+
+`AsyncMemoryFileSystem` も同じコンストラクタパラメータを受け取り、同期版へそのまま転送します。
 
 ### `MemoryFileHandle`
 
@@ -358,8 +402,9 @@ def test_write_read(mfs):
 設計書:
 
 - [アーキテクチャ仕様 v13](https://github.com/nightmarewalker/D-MemFS/blob/main/docs/design/spec_v13.md) — API 設計・内部構造・CI マトリクス
-- [詳細設計書](https://github.com/nightmarewalker/D-MemFS/blob/main/docs/design/DetailedDesignSpec.md) — コンポーネント設計と実装意図
-- [テスト詳細設計書](https://github.com/nightmarewalker/D-MemFS/blob/main/docs/design/DetailedDesignSpec_test.md) — テストケース一覧と疑似コード
+- [アーキテクチャ仕様 v14](https://github.com/nightmarewalker/D-MemFS/blob/main/docs/design/spec_v14.md) — MemoryGuard 統合後の最新アーキテクチャ仕様
+- [詳細設計書 v2](https://github.com/nightmarewalker/D-MemFS/blob/main/docs/design/DetailedDesignSpec_v2.md) — コンポーネント設計と実装意図
+- [テスト詳細設計書 v2](https://github.com/nightmarewalker/D-MemFS/blob/main/docs/design/DetailedDesignSpec_test_v2.md) — テストケース一覧と疑似コード
 
 ---
 

@@ -1,4 +1,4 @@
-# MemoryFileSystem (MFS) v13 アーキテクチャ＆実装マスター設計書 (完全防弾・網羅版)
+# MemoryFileSystem (MFS) v14 アーキテクチャ＆実装マスター設計書 (完全防弾・網羅版)
 
 ## 変更履歴
 | バージョン | 変更概要 |
@@ -8,6 +8,7 @@
 | **v11** | Phase 3 設計の詳細化：ファイルタイムスタンプ（`stat()` API）、メモリ使用量の最適化（`bytearray` shrink）、PEP 703 対応設計、async/await ラッパー層設計。ロードマップ項目を正式な設計セクションに昇格 |
 | **v12** | Opus評価レポート（v3）フィードバック反映：`open()` 内 `_global_lock` 長期保持リスクの注意事項強化、`walk()`/`glob()` のGILフリー安全性対応、`get_size()`/`listdir()` のロック保護追加、`_NoOpQuotaManager` 削除、`AsyncMemoryFileSystem` 公開方式変更（`__getattr__` 遅延インポート）、`_force_reserve()` 使用制約の明記、`copy()` API仕様の補完 |
 | **v13** | mfs_eval_report_opus_v6+v5 フィードバック反映：`MFSStatResult.is_sequential` 削除・`is_dir` 追加、`stat()` のディレクトリ対応（`IsADirectoryError` 廃止）、`MemoryFileSystem.__init__()` に `default_storage`/`max_nodes`/`promotion_hard_limit` パラメータ追加、`MFSNodeLimitExceededError` 例外新設（`MFSQuotaExceededError` のサブクラス）、`MFSTextHandle` テキストI/Oヘルパー追加（§5.6）、pytest プラグイン（`mfs` フィクスチャ）追加（§5.7）、`IMemoryFile._bulk_load()` インターフェース追加、`SequentialMemoryFile` の `allow_promotion`/`DEFAULT_PROMOTION_HARD_LIMIT` 追加、`export_as_bytesio()` TOCTOU修正（グローバルロック内でファイルロックを取得）、`truncate()` ゼロ埋め拡張対応（POSIX準拠）、パッケージ名 `dmemfs` に変更 |
+| **v14** | 物理メモリ保護機構 `MemoryGuard` を追加。`memory_guard` / `memory_guard_action` / `memory_guard_interval` パラメータを `MemoryFileSystem` / `AsyncMemoryFileSystem` に導入し、OS依存の利用可能メモリ検出層（Windows / Linux / macOS、Linux は cgroup v2/v1 対応）と、`write_at` / `truncate(拡張)` / `import_tree()` / `copy_tree()` / `preallocate` 経路への事前チェック、`MemoryError` メッセージ改善を設計に統合 |
 
 ---
 
@@ -34,7 +35,7 @@
   `io.BytesIO` は単一ファイルのシミュレートに過ぎない。MFSは数千の微細なファイル群（ソース、ヘッダ、バイナリ等）を展開し、それらのディレクトリ階層構造を正確に維持・管理・検索するための「ファイルシステムとしてのオーケストレーション機能」を提供する。
 
 ### 1.3 防弾仕様（Bulletproof）の3原則
-1. **絶対的リソース保護 (Bulletproof Quota)**: 中央銀行（Quota）がアロケーションを「書く前に拒否」し、プロセスをOOM（メモリ枯渇）から物理的に守る。
+1. **絶対的リソース保護 (Bulletproof Quota)**: 中央銀行（Quota）がアロケーションを「書く前に拒否」し、プロセスをOOM（メモリ枯渇）から物理的に守る。v14 ではこの原則を拡張し、論理クォータに加えて、任意で物理メモリの実残量に対する事前警戒（`MemoryGuard`）も提供する。
 2. **ゼロ依存 (Zero-dependency)**: Python 3.11以上の標準ライブラリのみで構成し、バイナリコンパイルを必要とする外部依存を排除する。
    > **Python 3.11+ 要件の根拠**: `typing.Self`（PEP 673）による正確な戻り値型アノテーション（`__enter__() -> Self` 等）の利用、および Python 3.11 の CPython パフォーマンス改善を前提とした設計のため。なお `sqlite3.serialize` / `deserialize` は Python 3.8+ で利用可能であり、バージョン要件の根拠ではない。
 3. **関心の分離 (Separation of Concerns)**: MFSは「純粋なバイト列の仮想階層管理とリソース制御」に徹する。テキストエンコーディングや暗号化、物理永続化は上位の境界コントローラーへ委譲する。
@@ -86,6 +87,9 @@ MemoryFileSystem (オーケストレータ + クォータ銀行)
     ├── ディレクトリインデックス層 (Directory Index Layer)
     │     ├── DirNode (名前 → NodeId のマッピング)
     │     └── FileNode (ストレージ参照 + RWロック + メタデータ + タイムスタンプ)
+  ├── MemoryGuard ストラテジー層 (v14)
+  │     ├── _memory_info.py (OS依存の利用可能メモリ検出)
+  │     └── _memory_guard.py (none / init / per_write)
     ├── IMemoryFile (ストレージ抽象)
     │     ├── SequentialMemoryFile (list[bytes], 追記最適化)
     │     └── RandomAccessMemoryFile (bytearray, ランダムアクセス, shrink対応)
@@ -912,8 +916,29 @@ class AsyncMemoryFileSystem:
     全操作を asyncio.to_thread() 経由で実行し、イベントループをブロックしない。
     """
 
-    def __init__(self, max_quota: int = 256 * 1024 * 1024, **kwargs) -> None:
-        self._sync_fs = MemoryFileSystem(max_quota=max_quota, **kwargs)
+    def __init__(
+      self,
+      max_quota: int = 256 * 1024 * 1024,
+      chunk_overhead_override: int | None = None,
+      promotion_hard_limit: int | None = None,
+      max_nodes: int | None = None,
+      default_storage: str = "auto",
+      default_lock_timeout: float | None = 30.0,
+      memory_guard: str = "none",
+      memory_guard_action: str = "warn",
+      memory_guard_interval: float = 1.0,
+    ) -> None:
+      self._sync_fs = MemoryFileSystem(
+        max_quota=max_quota,
+        chunk_overhead_override=chunk_overhead_override,
+        promotion_hard_limit=promotion_hard_limit,
+        max_nodes=max_nodes,
+        default_storage=default_storage,
+        default_lock_timeout=default_lock_timeout,
+        memory_guard=memory_guard,
+        memory_guard_action=memory_guard_action,
+        memory_guard_interval=memory_guard_interval,
+      )
 
     async def open(
         self, path: str, mode: str = "rb", **kwargs
@@ -1083,6 +1108,97 @@ asyncio.run(main())
 `_global_lock` からメタデータツリーロックを独立させ、ノードツリー操作と高レベルのFS操作のロック粒度を分離する。高並行性環境でのスループット改善が期待できる。
 
 > **現状維持の理由**: 現時点の実用規模（数百〜数千ファイル）では `_global_lock` の競合がボトルネックにならない。ロック分離は設計の複雑化を伴うため、実際にスループット問題が顕在化してから対応する。設計拡張余地は確保済み。
+
+---
+
+## 第7部：v14 追加設計 - 物理メモリ保護 (MemoryGuard)
+
+### 7.1 背景と狙い
+
+`max_quota` は MFS 内部の論理上限であり、OS の物理メモリ残量と自動同期はしない。そのため、利用者が物理 RAM を上回る `max_quota` を指定した場合、論理クォータ到達前に OS 側の割り当て失敗で `MemoryError` が発生し得る。
+
+v14 ではこのギャップを埋めるため、既存の `QuotaManager` を汚さずに、物理メモリ残量を参照するオプション機構 `MemoryGuard` を追加する。
+
+### 7.2 設計原則
+
+| 原則 | 方針 |
+|---|---|
+| 後方互換性 | デフォルトは `memory_guard="none"` とし、既存ユーザーの挙動・性能を変えない |
+| ゼロ依存 | `ctypes` と擬似ファイル読み取りのみを使用し、外部ライブラリは導入しない |
+| 関心の分離 | 論理クォータ帳簿 (`QuotaManager`) と物理メモリ警戒 (`MemoryGuard`) を分離する |
+| ベストエフォート | チェックは将来の確保成功を保証しない。通過後の OS 状況変化により `MemoryError` はなお発生し得る |
+
+### 7.3 利用者向けパラメータ
+
+`MemoryFileSystem.__init__()` および `AsyncMemoryFileSystem.__init__()` に以下を追加する。
+
+| パラメータ | 型 | デフォルト | 説明 |
+|---|---|---|---|
+| `memory_guard` | `str` | `"none"` | 物理メモリ検査モード。`"none"` / `"init"` / `"per_write"` |
+| `memory_guard_action` | `str` | `"warn"` | 検査失敗時の動作。`"warn"` は `ResourceWarning`、`"raise"` は `MemoryError` |
+| `memory_guard_interval` | `float` | `1.0` | `per_write` 時の OS 問い合わせ最小間隔（秒） |
+
+### 7.4 モード定義
+
+| モード | 動作 | 主なユースケース |
+|---|---|---|
+| `"none"` | 物理メモリ検査なし。従来互換 | 既存コード、高速重視 |
+| `"init"` | 初期化時に `max_quota` と利用可能メモリを比較 | 短命バッチ、CI、単発スクリプト |
+| `"per_write"` | 初期化時に加えて、書き込み経路ごとに物理メモリ残量を確認 | 長時間 ETL、常駐処理、OOM 回避優先 |
+
+### 7.5 OS 依存の利用可能メモリ検出
+
+内部モジュール `_memory_info.py` を追加し、公開 API には含めない。`get_available_memory_bytes() -> int | None` は、取得に成功すれば利用可能な物理メモリ量をバイト単位で返し、取得不能時は例外を送出せず `None` を返す。
+
+- Windows: `GlobalMemoryStatusEx` を `ctypes` で呼ぶ
+- Linux: cgroup v2 → cgroup v1 → `/proc/meminfo` の順で 1 回だけプローブし、以後は確定した reader を使う
+- macOS: `host_statistics64` を `ctypes` で呼び、`free + speculative` を利用可能量とみなす
+
+Linux の cgroup 対応は Docker / Kubernetes 上での実効メモリ制限を正しく扱うため、将来拡張ではなく初期実装の必須要件とする。
+
+### 7.6 `MemoryGuard` ストラテジー層
+
+内部モジュール `_memory_guard.py` に以下を定義する。
+
+- `MemoryGuard`: `check_init(max_quota)` と `check_before_write(size)` を持つ抽象基底
+- `NullGuard`: 何もしないデフォルト実装
+- `InitGuard`: 初期化時のみ比較を行う
+- `PerWriteGuard`: `time.monotonic()` ベースのキャッシュ付きで書き込み前チェックを行う
+- `create_memory_guard(mode, action, interval)`: 文字列設定から具象ガードを生成するファクトリ
+
+`memory_guard_action="raise"` では、予防的拒否であっても `MemoryError` を送出する。これは実際の `MemoryError` と呼び出し側のハンドリングを共通化するためである。
+
+### 7.7 統合ポイント
+
+`MemoryGuard` は `QuotaManager` に注入しない。`QuotaManager` の責務は論理帳簿管理に限定し、各メモリ確保経路の直前で `MemoryGuard` を呼び出す。
+
+対象経路は以下の通り。
+
+- `SequentialMemoryFile.write_at()`
+- `RandomAccessMemoryFile.write_at()`
+- `SequentialMemoryFile.truncate()` / `RandomAccessMemoryFile.truncate()` の拡張経路
+- `MemoryFileSystem.open(..., preallocate=N)`
+- `MemoryFileSystem.import_tree()`
+- `MemoryFileSystem.copy_tree()`
+
+`import_tree()` / `copy_tree()` は `_force_reserve()` を用いるため、`reserve()` ベースのフックではなく、呼び出し側で差分サイズ算出後に明示的に `check_before_write()` を呼ぶ。
+
+### 7.8 実メモリ確保失敗時の扱い
+
+`MemoryGuard` はあくまで事前警戒であり、チェック通過後に他プロセスのメモリ消費が増えれば `MemoryError` はなお発生し得る。そこで v14 では、実際の確保失敗時に利用者が原因を理解しやすいよう、`write_at`、`truncate(拡張)`、昇格処理、`import_tree()` の `MemoryError` を補足し、以下の情報を含む説明的メッセージへ変換する。
+
+- 要求バイト数または対象ファイルサイズ
+- MFS の残余クォータ
+- `max_quota` が物理 RAM を上回る可能性がある旨
+- `memory_guard="init"` または `"per_write"` の利用案内
+
+クォータ帳簿の巻き戻しは既存の `reserve()` / ロールバック処理で保証し、v14 でも変更しない。
+
+### 7.9 既知の限界
+
+- `True` 相当の判定後も、将来の書き込み成功は保証されない
+- OS が返す「利用可能メモリ」は近似値であり、ページキャッシュ・圧縮メモリ・他プロセスの変動を完全には予測できない
+- Windows コンテナや WSL2 固有の制限検出は初期スコープ外とする
 
 ---
 

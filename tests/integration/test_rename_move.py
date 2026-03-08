@@ -263,11 +263,14 @@ def test_copy_tree_src_missing_raises(mfs):
 def test_copy_tree_quota_exceeded(mfs):
     """copy_tree でクォータを超過すると MFSQuotaExceededError。"""
     from dmemfs import MFSQuotaExceededError
+    from dmemfs._file import CHUNK_OVERHEAD_ESTIMATE
 
-    small_mfs = MemoryFileSystem(max_quota=200)
+    payload = 100
+    quota = 2 * (payload + CHUNK_OVERHEAD_ESTIMATE) - 1
+    small_mfs = MemoryFileSystem(max_quota=quota)
     small_mfs.mkdir("/src")
     with small_mfs.open("/src/f.bin", "wb") as f:
-        f.write(b"x" * 100)
+        f.write(b"x" * payload)
     with pytest.raises(MFSQuotaExceededError):
         small_mfs.copy_tree("/src", "/dst")
 
@@ -275,11 +278,14 @@ def test_copy_tree_quota_exceeded(mfs):
 def test_copy_tree_rollback_quota_consistency():
     """copy_tree がクォータ超過で失敗した場合、used_bytes が元に戻る。"""
     from dmemfs import MFSQuotaExceededError
+    from dmemfs._file import CHUNK_OVERHEAD_ESTIMATE
 
-    mfs = MemoryFileSystem(max_quota=300)
+    payload = 200
+    quota = 2 * (payload + CHUNK_OVERHEAD_ESTIMATE) - 1
+    mfs = MemoryFileSystem(max_quota=quota)
     mfs.mkdir("/src")
     with mfs.open("/src/f.bin", "wb") as f:
-        f.write(b"x" * 200)
+        f.write(b"x" * payload)
     used_before = mfs.stats()["used_bytes"]
 
     with pytest.raises(MFSQuotaExceededError):
@@ -290,7 +296,7 @@ def test_copy_tree_rollback_quota_consistency():
     assert used_after == used_before
     # 元ツリーは無傷
     with mfs.open("/src/f.bin", "rb") as f:
-        assert f.read() == b"x" * 200
+        assert f.read() == b"x" * payload
     # dst は作成されていないこと
     assert not mfs.exists("/dst")
 

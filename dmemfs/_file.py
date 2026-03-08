@@ -1,21 +1,20 @@
 import bisect
 import io
-import sys
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from ._memory_guard import MemoryGuard
     from ._quota import QuotaManager
 
 
-def _calibrate_chunk_overhead(safety_mul: float = 1.5, safety_add: int = 32) -> int:
-    empty_bytes_size = sys.getsizeof(b"")
-    list_ptr_size = sys.getsizeof([None]) - sys.getsizeof([])
-    raw = empty_bytes_size + list_ptr_size
-    return int(raw * safety_mul) + safety_add
+def _wrap_memory_error(message: str) -> MemoryError:
+    return MemoryError(message)
 
 
-CHUNK_OVERHEAD_ESTIMATE: int = _calibrate_chunk_overhead()
+# Keep quota behavior deterministic across standard and free-threaded builds.
+# A fixed conservative value avoids runtime-dependent quota boundaries.
+CHUNK_OVERHEAD_ESTIMATE: int = 128
 
 
 class IMemoryFile(ABC):
@@ -30,12 +29,20 @@ class IMemoryFile(ABC):
 
     @abstractmethod
     def write_at(
-        self, offset: int, data: bytes, quota_mgr: "QuotaManager"
-    ) -> "tuple[int, RandomAccessMemoryFile | None, int]":
-        ...
+        self,
+        offset: int,
+        data: bytes,
+        quota_mgr: "QuotaManager",
+        memory_guard: "MemoryGuard | None" = None,
+    ) -> "tuple[int, RandomAccessMemoryFile | None, int]": ...
 
     @abstractmethod
-    def truncate(self, size: int, quota_mgr: "QuotaManager") -> None: ...
+    def truncate(
+        self,
+        size: int,
+        quota_mgr: "QuotaManager",
+        memory_guard: "MemoryGuard | None" = None,
+    ) -> None: ...
 
     @abstractmethod
     def get_size(self) -> int: ...
@@ -51,7 +58,12 @@ class IMemoryFile(ABC):
 class SequentialMemoryFile(IMemoryFile):
     DEFAULT_PROMOTION_HARD_LIMIT: int = 512 * 1024 * 1024
 
-    def __init__(self, chunk_overhead: int = CHUNK_OVERHEAD_ESTIMATE, promotion_hard_limit: int | None = None, allow_promotion: bool = True) -> None:
+    def __init__(
+        self,
+        chunk_overhead: int = CHUNK_OVERHEAD_ESTIMATE,
+        promotion_hard_limit: int | None = None,
+        allow_promotion: bool = True,
+    ) -> None:
         super().__init__()
         self._chunks: list[bytes] = []
         self._cumulative: list[int] = []
@@ -86,35 +98,64 @@ class SequentialMemoryFile(IMemoryFile):
                 break
         return bytes(result)
 
-    def write_at(self, offset: int, data: bytes, quota_mgr: "QuotaManager") -> "tuple[int, RandomAccessMemoryFile | None, int]":
+    def write_at(
+        self,
+        offset: int,
+        data: bytes,
+        quota_mgr: "QuotaManager",
+        memory_guard: "MemoryGuard | None" = None,
+    ) -> "tuple[int, RandomAccessMemoryFile | None, int]":
         if offset != self._size:
             if not self._allow_promotion:
                 raise io.UnsupportedOperation(
                     "Random-access write on a sequential-only file: "
                     "promotion is disabled (default_storage='sequential')."
                 )
-            return self._promote_and_write(offset, data, quota_mgr)
+            return self._promote_and_write(offset, data, quota_mgr, memory_guard)
         n = len(data)
         if n == 0:
             return 0, None, 0
         overhead = self._chunk_overhead
+        if memory_guard is not None:
+            memory_guard.check_before_write(n + overhead)
         with quota_mgr.reserve(n + overhead):
-            self._chunks.append(data)
-            self._size += n
-            self._cumulative.append(self._size)
+            try:
+                self._chunks.append(data)
+                self._size += n
+                self._cumulative.append(self._size)
+            except MemoryError:
+                raise _wrap_memory_error(
+                    f"OS memory allocation failed while writing {n:,} bytes. "
+                    f"MFS quota had {quota_mgr.free:,} bytes remaining. "
+                    "The max_quota may exceed available system RAM. "
+                    "Consider reducing max_quota or using memory_guard='init'."
+                ) from None
         return n, None, 0
 
-    def truncate(self, size: int, quota_mgr: "QuotaManager") -> None:
+    def truncate(
+        self,
+        size: int,
+        quota_mgr: "QuotaManager",
+        memory_guard: "MemoryGuard | None" = None,
+    ) -> None:
         if size == self._size:
             return
         if size > self._size:
             # POSIX: extend with zero bytes
             pad = bytes(size - self._size)
             overhead = self._chunk_overhead
+            if memory_guard is not None:
+                memory_guard.check_before_write(len(pad) + overhead)
             with quota_mgr.reserve(len(pad) + overhead):
-                self._chunks.append(pad)
-                self._size = size
-                self._cumulative.append(size)
+                try:
+                    self._chunks.append(pad)
+                    self._size = size
+                    self._cumulative.append(size)
+                except MemoryError:
+                    raise _wrap_memory_error(
+                        f"OS memory allocation failed while extending file to {size:,} bytes. "
+                        "Consider reducing max_quota or using memory_guard='init'."
+                    ) from None
             return
         data = b"".join(self._chunks)[:size]
         old_overhead = len(self._chunks) * self._chunk_overhead
@@ -140,7 +181,13 @@ class SequentialMemoryFile(IMemoryFile):
             self._size = 0
             self._cumulative = []
 
-    def _promote_and_write(self, offset: int, data: bytes, quota_mgr: "QuotaManager") -> "tuple[int, RandomAccessMemoryFile, int]":
+    def _promote_and_write(
+        self,
+        offset: int,
+        data: bytes,
+        quota_mgr: "QuotaManager",
+        memory_guard: "MemoryGuard | None" = None,
+    ) -> "tuple[int, RandomAccessMemoryFile, int]":
         # NOTE: During promotion, both the original chunk list and the new
         # bytearray coexist temporarily, consuming ~2x the file size in memory.
         # quota_mgr.reserve(current_size) accounts for this in quota terms.
@@ -150,12 +197,20 @@ class SequentialMemoryFile(IMemoryFile):
                 f"Cannot promote SequentialMemoryFile: size {current_size} "
                 f"exceeds hard limit {self._promotion_hard_limit}."
             )
+        if memory_guard is not None:
+            memory_guard.check_before_write(current_size)
         with quota_mgr.reserve(current_size):
-            new_buf = bytearray(b"".join(self._chunks))
+            try:
+                new_buf = bytearray(b"".join(self._chunks))
+            except MemoryError:
+                raise _wrap_memory_error(
+                    f"OS memory allocation failed during storage promotion (file size: {current_size:,} bytes). "
+                    "Consider reducing max_quota or using memory_guard='init'."
+                ) from None
         old_overhead = len(self._chunks) * self._chunk_overhead
         quota_mgr.release(old_overhead)
         promoted = RandomAccessMemoryFile.from_bytearray(new_buf)
-        written, _, _ = promoted.write_at(offset, data, quota_mgr)
+        written, _, _ = promoted.write_at(offset, data, quota_mgr, memory_guard)
         return written, promoted, current_size
 
 
@@ -182,9 +237,15 @@ class RandomAccessMemoryFile(IMemoryFile):
     def read_at(self, offset: int, size: int) -> bytes:
         if size < 0:
             return bytes(self._buf[offset:])
-        return bytes(self._buf[offset: offset + size])
+        return bytes(self._buf[offset : offset + size])
 
-    def write_at(self, offset: int, data: bytes, quota_mgr: "QuotaManager") -> "tuple[int, None, int]":
+    def write_at(
+        self,
+        offset: int,
+        data: bytes,
+        quota_mgr: "QuotaManager",
+        memory_guard: "MemoryGuard | None" = None,
+    ) -> "tuple[int, None, int]":
         n = len(data)
         if n == 0:
             return 0, None, 0
@@ -192,27 +253,49 @@ class RandomAccessMemoryFile(IMemoryFile):
         new_size = max(current_len, offset + n)
         extend = new_size - current_len
         if extend > 0:
+            if memory_guard is not None:
+                memory_guard.check_before_write(extend)
             with quota_mgr.reserve(extend):
-                if offset > current_len:
-                    self._buf.extend(bytes(offset - current_len))
-                    self._buf.extend(data)
-                else:
-                    overlap = current_len - offset
-                    self._buf[offset:current_len] = data[:overlap]
-                    self._buf.extend(data[overlap:])
+                try:
+                    if offset > current_len:
+                        self._buf.extend(bytes(offset - current_len))
+                        self._buf.extend(data)
+                    else:
+                        overlap = current_len - offset
+                        self._buf[offset:current_len] = data[:overlap]
+                        self._buf.extend(data[overlap:])
+                except MemoryError:
+                    raise _wrap_memory_error(
+                        f"OS memory allocation failed while writing {n:,} bytes. "
+                        f"MFS quota had {quota_mgr.free:,} bytes remaining. "
+                        "Consider reducing max_quota or using memory_guard='init'."
+                    ) from None
         else:
-            self._buf[offset: offset + n] = data
+            self._buf[offset : offset + n] = data
         return n, None, 0
 
-    def truncate(self, size: int, quota_mgr: "QuotaManager") -> None:
+    def truncate(
+        self,
+        size: int,
+        quota_mgr: "QuotaManager",
+        memory_guard: "MemoryGuard | None" = None,
+    ) -> None:
         old_size = len(self._buf)
         if size == old_size:
             return
         if size > old_size:
             # POSIX: extend with zero bytes
             extend = size - old_size
+            if memory_guard is not None:
+                memory_guard.check_before_write(extend)
             with quota_mgr.reserve(extend):
-                self._buf.extend(bytes(extend))
+                try:
+                    self._buf.extend(bytes(extend))
+                except MemoryError:
+                    raise _wrap_memory_error(
+                        f"OS memory allocation failed while extending file to {size:,} bytes. "
+                        "Consider reducing max_quota or using memory_guard='init'."
+                    ) from None
             return
         release = old_size - size
         del self._buf[size:]

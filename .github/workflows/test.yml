@@ -48,3 +48,18 @@ jobs:
       with:
         name: api-docs-pdoc
         path: docs/api
+
+  free-threaded:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+    - name: Install free-threaded Python
+      run: uv python install cpython-3.13+freethreaded
+    - name: Compile requirements
+      run: uv pip compile requirements.in -o requirements.txt
+    - name: Run tests (free-threaded, GIL=0)
+      env:
+        PYTHON_GIL: "0"
+      run: uvx --python cpython-3.13+freethreaded --with-requirements requirements.txt --with-editable . pytest tests/ -v --timeout=30

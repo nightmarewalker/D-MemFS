@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-03-09
+
+### Added
+- `memory_guard` parameter for physical memory protection
+  - `memory_guard="none"` (default): no check, fully backward compatible
+  - `memory_guard="init"`: check available RAM at initialization
+  - `memory_guard="per_write"`: check before each write with interval caching
+- `memory_guard_action="warn" | "raise"` to choose `ResourceWarning` or `MemoryError`
+- `memory_guard_interval=1.0` to control OS query cache interval
+- New internal modules: `_memory_info.py` and `_memory_guard.py`
+- MemoryGuard-specific unit and integration tests
+
+### Changed
+- `IMemoryFile.write_at()` accepts an optional `memory_guard` parameter
+- `IMemoryFile.truncate()` accepts an optional `memory_guard` parameter
+- `MemoryFileHandle.write()` and `truncate()` now forward `memory_guard`
+- `MemoryFileSystem` and `AsyncMemoryFileSystem` accept all `memory_guard` parameters
+- `open(..., preallocate=...)`, `import_tree()`, and `copy_tree()` are integrated with MemoryGuard
+- `MemoryError` messages now include context and recovery hints for memory-sensitive paths
+- `dmemfs.__version__` and project version bumped to `0.3.0`
+
 ## [0.2.2] - 2026-03-08
 
 ### Added

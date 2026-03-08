@@ -272,7 +272,6 @@ Parameters
 ----------
 size:
     Maximum number of characters to read. ``-1`` reads everything.
-    Note that this is an approximation in characters, not bytes.
 
 <a id="dmemfs._text.MFSTextHandle.readline"></a>
 
@@ -289,7 +288,7 @@ Recognizes ``\n``, ``\r\n``, and bare ``\r`` as line endings.
 Parameters
 ----------
 limit:
-    Maximum number of bytes to read (``-1`` means unlimited).
+    Maximum number of characters to read (``-1`` means unlimited).
 
 <a id="dmemfs._text.MFSTextHandle.__iter__"></a>
 
@@ -300,6 +299,31 @@ def __iter__() -> Iterator[str]
 ```
 
 Line iterator.
+
+<a id="dmemfs._memory_info"></a>
+
+# dmemfs.\_memory\_info
+
+OS-specific available physical memory detection.
+
+Internal module - not part of the public API.
+Uses only Python standard library.
+
+<a id="dmemfs._memory_info.get_available_memory_bytes"></a>
+
+#### get\_available\_memory\_bytes
+
+```python
+def get_available_memory_bytes() -> int | None
+```
+
+Return available physical memory in bytes, or None if unavailable.
+
+<a id="dmemfs._memory_guard"></a>
+
+# dmemfs.\_memory\_guard
+
+Physical memory guard strategies for D-MemFS.
 
 <a id="dmemfs._pytest_plugin"></a>
 

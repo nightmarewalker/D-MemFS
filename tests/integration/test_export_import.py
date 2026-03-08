@@ -168,7 +168,7 @@ def test_export_as_bytesio_with_global_lock(mfs):
         for _ in range(100):
             try:
                 mfs.remove("/f.bin")
-            except FileNotFoundError:
+            except (FileNotFoundError, BlockingIOError):
                 pass
             with mfs.open("/f.bin", "wb") as f:
                 f.write(b"data")

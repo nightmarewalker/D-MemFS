@@ -1,4 +1,5 @@
 import threading
+from collections.abc import Iterator
 from contextlib import contextmanager
 
 from ._exceptions import MFSQuotaExceededError
@@ -11,7 +12,7 @@ class QuotaManager:
         self._lock: threading.Lock = threading.Lock()
 
     @contextmanager
-    def reserve(self, size: int):
+    def reserve(self, size: int) -> Iterator[None]:
         if size <= 0:
             yield
             return

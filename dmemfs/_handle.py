@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 import time
 import warnings
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ._fs import FileNode, MemoryFileSystem
@@ -55,13 +55,16 @@ class MemoryFileHandle(io.RawIOBase):
             self._cursor += actual
         return data
 
-    def write(self, data: bytes) -> int:
+    def write(self, data: Any) -> int:
         self._assert_open()
         self._assert_writable()
+        if not isinstance(data, (bytes, bytearray, memoryview)):
+            raise TypeError("a bytes-like object is required")
+        payload = bytes(data)
         if self._is_append:
             self._cursor = self._fnode.storage.get_size()
         n, promoted, old_quota = self._fnode.storage.write_at(
-            self._cursor, data, self._mfs._quota
+            self._cursor, payload, self._mfs._quota, self._mfs._memory_guard
         )
         if promoted is not None:
             self._fnode.storage = promoted
@@ -72,7 +75,7 @@ class MemoryFileHandle(io.RawIOBase):
             self._fnode.modified_at = time.time()
         return n
 
-    def readinto(self, buffer: bytearray | memoryview) -> int:
+    def readinto(self, buffer: Any) -> int:
         self._assert_open()
         self._assert_readable()
         view = memoryview(buffer).cast("B")
@@ -114,7 +117,7 @@ class MemoryFileHandle(io.RawIOBase):
         if target < 0:
             raise ValueError("truncate size must be >= 0")
         before = self._fnode.storage.get_size()
-        self._fnode.storage.truncate(target, self._mfs._quota)
+        self._fnode.storage.truncate(target, self._mfs._quota, self._mfs._memory_guard)
         if self._cursor > target:
             self._cursor = target
         if before != target:
@@ -152,7 +155,7 @@ class MemoryFileHandle(io.RawIOBase):
     def __enter__(self) -> MemoryFileHandle:
         return self
 
-    def __exit__(self, *args) -> None:
+    def __exit__(self, *args: object) -> None:
         self.close()
 
     def __del__(self) -> None:

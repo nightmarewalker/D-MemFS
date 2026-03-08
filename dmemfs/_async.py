@@ -71,6 +71,9 @@ class AsyncMemoryFileSystem:
         max_nodes: int | None = None,
         default_storage: str = "auto",
         default_lock_timeout: float | None = 30.0,
+        memory_guard: str = "none",
+        memory_guard_action: str = "warn",
+        memory_guard_interval: float = 1.0,
     ) -> None:
         self._sync = MemoryFileSystem(
             max_quota=max_quota,
@@ -79,6 +82,9 @@ class AsyncMemoryFileSystem:
             max_nodes=max_nodes,
             default_storage=default_storage,
             default_lock_timeout=default_lock_timeout,
+            memory_guard=memory_guard,
+            memory_guard_action=memory_guard_action,
+            memory_guard_interval=memory_guard_interval,
         )
 
     async def open(
@@ -88,9 +94,7 @@ class AsyncMemoryFileSystem:
         preallocate: int = 0,
         lock_timeout: float | None = None,
     ) -> AsyncMemoryFileHandle:
-        h = await asyncio.to_thread(
-            self._sync.open, path, mode, preallocate, lock_timeout
-        )
+        h = await asyncio.to_thread(self._sync.open, path, mode, preallocate, lock_timeout)
         return AsyncMemoryFileHandle(h)
 
     async def mkdir(self, path: str, exist_ok: bool = False) -> None:
@@ -129,14 +133,10 @@ class AsyncMemoryFileSystem:
     async def get_size(self, path: str) -> int:
         return await asyncio.to_thread(self._sync.get_size, path)
 
-    async def export_as_bytesio(
-        self, path: str, max_size: int | None = None
-    ) -> io.BytesIO:
+    async def export_as_bytesio(self, path: str, max_size: int | None = None) -> io.BytesIO:
         return await asyncio.to_thread(self._sync.export_as_bytesio, path, max_size)
 
-    async def export_tree(
-        self, prefix: str = "/", only_dirty: bool = False
-    ) -> dict[str, bytes]:
+    async def export_tree(self, prefix: str = "/", only_dirty: bool = False) -> dict[str, bytes]:
         return await asyncio.to_thread(self._sync.export_tree, prefix, only_dirty)
 
     async def import_tree(self, tree: dict[str, bytes]) -> None:
