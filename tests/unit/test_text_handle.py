@@ -47,6 +47,28 @@ def test_read_partial(mfs):
     assert result == "abc"
 
 
+def test_read_partial_multibyte_counts_characters(mfs):
+    with mfs.open("/f.bin", "wb") as fh:
+        th = MFSTextHandle(fh, encoding="utf-8")
+        th.write("あいうえお")
+    with mfs.open("/f.bin", "rb") as fh:
+        th = MFSTextHandle(fh, encoding="utf-8")
+        assert th.read(2) == "あい"
+        assert th.read(2) == "うえ"
+        assert th.read(2) == "お"
+
+
+def test_readline_after_partial_multibyte_read_uses_buffer(mfs):
+    with mfs.open("/f.bin", "wb") as fh:
+        th = MFSTextHandle(fh, encoding="utf-8")
+        th.write("あい\nうえ\n")
+    with mfs.open("/f.bin", "rb") as fh:
+        th = MFSTextHandle(fh, encoding="utf-8")
+        assert th.read(1) == "あ"
+        assert th.readline() == "い\n"
+        assert th.readline() == "うえ\n"
+
+
 # ---------------------------------------------------------------------------
 # readline
 # ---------------------------------------------------------------------------

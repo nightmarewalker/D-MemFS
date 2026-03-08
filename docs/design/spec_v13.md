@@ -518,6 +518,11 @@ conn2.deserialize(data)
 * `_cursor: int`: 現在のシーク位置。
 * `_is_closed: bool`: ライフサイクル管理フラグ。
 
+#### 【型としての位置づけ】
+* `MemoryFileHandle` は `io.RawIOBase` を継承する。
+* `isinstance(handle, io.IOBase)` / `isinstance(handle, io.RawIOBase)` は `True` を返す。
+* 互換性のため `readinto()` を提供するが、MFS のコア契約は引き続き「即時クォータ判定を伴うバイナリ I/O」である。
+
 #### 【I/O・ライフサイクル API (公開)】
 
 * `read(size: int = -1) -> bytes`:
@@ -525,6 +530,12 @@ conn2.deserialize(data)
   - 正値: 最大 `size` バイトを読み取り、カーソルを進める。要求バイト数に満たないデータしかない場合は残り全てを返す。
   - **EOF時の挙動**: カーソルがファイル末尾以降に達している場合は `b""` を返す。Python標準の `io.RawIOBase` と同等の挙動。
   - 書込専用モード（`wb`, `ab`, `xb`）で呼び出した場合は `io.UnsupportedOperation`。
+
+* `readinto(buffer: bytearray | memoryview) -> int`:
+  - `buffer` に最大 `len(buffer)` バイトを読み込んで格納する。
+  - 戻り値は実際に格納したバイト数。
+  - EOF では `0` を返す。
+  - `read()` のセマンティクスをそのまま利用する最小実装とし、追加の内部バッファは持たない。
 
 * `write(data: bytes) -> int`:
   - 書き込み位置（カーソル）とデータ長から算出される新ファイルサイズが現在のファイルサイズを上回る場合、差分バイト数（`max(0, cursor + len(data) - current_size)`）のみ `reserve_quota` で予約する。既存領域への上書き（ファイルサイズ不変）はクォータ変動なし。preallocateで確保済みの領域内への書き込みもクォータ変動なし（§5.1 `preallocate` 参照）。
@@ -600,9 +611,9 @@ conn2.deserialize(data)
 
 標準の `io.TextIOWrapper` を採用しない理由は以下の通り：
 
-1. **`readinto()` の要求**: `TextIOWrapper` はラップ対象に `readinto()` を要求するが、`MemoryFileHandle` は提供しない。追加はバッファプロトコルとの密結合を招く。
-2. **バッファリングとクォータの衝突**: `TextIOWrapper` の内部バッファにより、`flush()` までクォータ計上が遅延する。ハードクォータの「書く前に拒否する」契約と矛盾する。
-3. **`seek` の cookie 問題**: `TextIOWrapper` の `seek()` はバイトオフセットではなく不透明な cookie を使用し、`MemoryFileHandle` のバイト単位 seek と噛み合わない。
+1. **バッファリングとクォータの衝突**: `TextIOWrapper` の内部バッファにより、`flush()` までクォータ計上が遅延する。ハードクォータの「書く前に拒否する」契約と矛盾する。
+2. **`seek` の cookie 問題**: `TextIOWrapper` の `seek()` はバイトオフセットではなく不透明な cookie を使用し、`MemoryFileHandle` のバイト単位 seek と噛み合わない。
+3. **テキスト境界の制御**: MFS はマルチバイト文字の途中切断を避けつつ `read(size)` を文字数基準で扱いたい。軽量な専用ラッパーの方が、公開契約を小さく保ったままこの要件を満たしやすい。
 
 #### 【クラス定義】
 
@@ -627,9 +638,9 @@ class MFSTextHandle:
 
 * `write(text: str) -> int`: テキストをエンコードしてバイナリハンドルに書き込む。戻り値は**文字数**（バイト数ではない）。書き込みは即座にバイナリハンドルに委譲され、クォータチェックはリアルタイムで実行される（バッファなし）。
 
-* `read(size: int = -1) -> str`: バイナリハンドルからバイト列を読み取り、デコードして返す。`size=-1` はファイル全体を読み取る。`size >= 0` の場合、`size` は**バイト数の近似値**として扱われる（文字数ではない）。マルチバイト文字（UTF-8 の日本語等）では、要求した文字数より少ない文字が返される可能性がある。
+* `read(size: int = -1) -> str`: バイナリハンドルからバイト列を読み取り、デコードして返す。`size=-1` はファイル全体を読み取る。`size >= 0` の場合、`size` は**文字数**として扱われる。実装はコードポイント境界を壊さないことを優先し、必要に応じて1バイトずつ増分デコードする。
 
-* `readline(limit: int = -1) -> str`: 1行を読み取る。改行コードは `\n`、`\r\n`、`\r`（ベア）の3種を認識する。`limit` はバイト数上限（`-1` は無制限）。実装は1バイトずつ読み取る方式（バッファなし）。メモリ上の操作のため、1バイト読みの性能影響は実用上無視できる。
+* `readline(limit: int = -1) -> str`: 1行を読み取る。改行コードは `\n`、`\r\n`、`\r`（ベア）の3種を認識する。`limit` は文字数上限（`-1` は無制限）。実装は `read(1)` を繰り返す方式で、コードポイント境界を壊さない。
 
 * `__iter__() -> Iterator[str]`, `__next__() -> str`: 行イテレータ。内部で `readline()` を呼び出す。
 

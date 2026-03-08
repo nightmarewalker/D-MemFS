@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from ._fs import FileNode, MemoryFileSystem
 
 
-class MemoryFileHandle:
+class MemoryFileHandle(io.RawIOBase):
     def __init__(
         self,
         mfs: MemoryFileSystem,
@@ -18,6 +18,7 @@ class MemoryFileHandle:
         mode: str,
         is_append: bool = False,
     ) -> None:
+        super().__init__()
         self._mfs = mfs
         self._fnode = fnode
         self._path = path
@@ -35,7 +36,7 @@ class MemoryFileHandle:
             raise io.UnsupportedOperation(f"not writable in mode '{self._mode}'")
 
     def _assert_open(self) -> None:
-        if self._is_closed:
+        if self.closed or self._is_closed:
             raise ValueError("I/O operation on closed file.")
 
     def read(self, size: int = -1) -> bytes:
@@ -69,6 +70,15 @@ class MemoryFileHandle:
         if n > 0:
             self._fnode.generation += 1
             self._fnode.modified_at = time.time()
+        return n
+
+    def readinto(self, buffer: bytearray | memoryview) -> int:
+        self._assert_open()
+        self._assert_readable()
+        view = memoryview(buffer).cast("B")
+        data = self.read(len(view))
+        n = len(data)
+        view[:n] = data
         return n
 
     def seek(self, offset: int, whence: int = 0) -> int:
@@ -129,14 +139,15 @@ class MemoryFileHandle:
         return True
 
     def close(self) -> None:
-        if self._is_closed:
+        if self.closed or self._is_closed:
             return
-        self._is_closed = True
         mode = self._mode
         if mode in ("wb", "ab", "r+b", "xb"):
             self._fnode._rw_lock.release_write()
         else:
             self._fnode._rw_lock.release_read()
+        super().close()
+        self._is_closed = True
 
     def __enter__(self) -> MemoryFileHandle:
         return self
@@ -145,7 +156,7 @@ class MemoryFileHandle:
         self.close()
 
     def __del__(self) -> None:
-        if not self._is_closed:
+        if not getattr(self, "_is_closed", True) and not getattr(self, "closed", True):
             warnings.warn(
                 "MFS MemoryFileHandle was not closed properly. "
                 "Always use 'with mfs.open(...) as f:' to ensure cleanup.",

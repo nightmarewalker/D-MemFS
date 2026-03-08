@@ -267,3 +267,23 @@ def test_io_capability_methods(mfs):
         assert f.writable() is False
         assert f.readable() is True
         assert f.seekable() is True
+
+
+def test_handle_is_raw_iobase(mfs):
+    with mfs.open("/f.bin", "wb") as f:
+        assert isinstance(f, io.RawIOBase)
+        assert isinstance(f, io.IOBase)
+        assert f.closed is False
+    assert f.closed is True
+
+
+def test_readinto_reads_bytes(mfs):
+    with mfs.open("/f.bin", "wb") as f:
+        f.write(b"abcdef")
+
+    with mfs.open("/f.bin", "rb") as f:
+        buf = bytearray(4)
+        n = f.readinto(buf)
+        assert n == 4
+        assert bytes(buf) == b"abcd"
+        assert f.read() == b"ef"

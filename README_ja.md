@@ -86,7 +86,9 @@ except MFSQuotaExceededError as e:
 
 ### `MemoryFileHandle`
 
+- `io.RawIOBase` 互換のバイナリハンドル
 - `read`, `write`, `seek`, `tell`, `truncate`, `flush`, `close`
+- `readinto`
 - file-like 能力判定: `readable`, `writable`, `seekable`
 
 `flush()` は互換性確保のための no-op 実装です。
@@ -123,7 +125,7 @@ with mfs.open("/data/hello.bin", "rb") as f:
         print(line, end="")
 ```
 
-`MFSTextHandle` はバッファなしの薄いラッパーです。`write()` 時にエンコード、`read()` / `readline()` 時にデコードします。`io.TextIOWrapper` と異なり、`MemoryFileHandle` とのバッファリング問題が発生しません。
+`MFSTextHandle` はバッファなしの薄いラッパーです。`write()` 時にエンコード、`read()` / `readline()` 時にデコードします。`read(size)` はバイト数ではなく文字数で扱われるため、マルチバイト文字も途中で壊さずに読み取れます。`io.TextIOWrapper` と異なり、`MemoryFileHandle` とのバッファリング問題が発生しません。
 
 ---
 

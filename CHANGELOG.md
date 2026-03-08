@@ -7,17 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-03-08
+
 ### Added
 - `MemoryFileSystem.is_file(path)` for API symmetry with `exists()` / `is_dir()`
 - `MemoryFileHandle` file-like methods: `truncate()`, `flush()`, `readable()`, `writable()`, `seekable()`
+- `MemoryFileHandle.readinto()` and `io.RawIOBase` compatibility for file-like integrations
 - Async counterparts for new file-like methods and `AsyncMemoryFileSystem.is_file()`
 - `IMemoryFile._bulk_load(data)` method for internal use by `import_tree()` / `_deep_copy_subtree()` (improves encapsulation)
+- Version consistency test for `pyproject.toml` and `dmemfs.__version__`
 
 ### Changed
 - `MemoryFileSystem.__init__` and `AsyncMemoryFileSystem.__init__` accept a new `default_lock_timeout: float | None = 30.0` parameter. `open()` now resolves `lock_timeout=None` to this value, preventing `_global_lock` from being held indefinitely when a file lock cannot be acquired. Pass `default_lock_timeout=None` to restore the previous infinite-wait behaviour.
 - **[BREAKING]** `MFSStatResult.is_sequential` field removed. This internal implementation detail is no longer exposed in the public API.
 - **[BREAKING]** Package renamed from `memory-file-system` / `memory_file_system` to `D-MemFS` / `dmemfs`. Update imports: `from dmemfs import ...`
-- `stat()` directory support: previously raised `IsADirectoryError`; behavior unchanged in this release, but `is_dir` field added to `MFSStatResult` in future
+- `MFSTextHandle.read(size)` and `readline(limit)` now treat their limits as character counts and avoid splitting multibyte text
 - `export_as_bytesio()` TOCTOU gap fixed: `_rw_lock.acquire_read()` now called inside `_global_lock` block
 - `exists()` / `is_dir()` now resolve paths under `_global_lock` for consistent thread-safety policy
 - `open(..., preallocate=...)` now performs preallocation under `_global_lock`
@@ -27,12 +31,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 - README / README_en updated with lock behavior notes (`_global_lock` hold, writer starvation)
-- README / README_en API tables updated for `is_file()` and new handle methods
-- Clarified that `stat()` is file-only and that `MFSStatResult.is_sequential` is implementation detail
+- README / README_en API tables updated for `is_file()`, `readinto()`, and RawIOBase-compatible handle behavior
+- Clarified `export_as_bytesio()` detached-snapshot semantics, `MFSTextHandle` character-count behavior, and `mkdir()` auto-parent semantics
 
 ### Tests
 - Added 3 tests to `test_concurrency.py` for `default_lock_timeout`: contention raises `BlockingIOError`, explicit `lock_timeout` overrides the default, and `default_lock_timeout=None` waits indefinitely until lock is released
 - Added tests for `is_file()`, handle file-like methods, async wrappers, and `import_tree()` parent-dir rollback
+- Added regression tests for `readinto()`, multibyte `MFSTextHandle.read(size)`, detached `export_as_bytesio()` snapshots, weakly-consistent `iter_export_tree()`, and version synchronization
 
 ## [0.2.0] - 2026-02-26
 

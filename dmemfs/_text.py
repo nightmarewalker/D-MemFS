@@ -6,6 +6,7 @@ Immediate quota checking, no ``readinto()`` required, no cookie seek issues.
 
 from __future__ import annotations
 
+import codecs
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
@@ -43,6 +44,7 @@ class MFSTextHandle:
         self._handle = handle
         self._encoding = encoding
         self._errors = errors
+        self._decoded_buffer = ""
 
     @property
     def encoding(self) -> str:
@@ -78,13 +80,49 @@ class MFSTextHandle:
         ----------
         size:
             Maximum number of characters to read. ``-1`` reads everything.
-            Note that this is an approximation in characters, not bytes.
         """
         if size < 0:
             raw = self._handle.read()
-        else:
-            raw = self._handle.read(size)
-        return raw.decode(self._encoding, self._errors)
+            if self._decoded_buffer:
+                prefix = self._decoded_buffer
+                self._decoded_buffer = ""
+                return prefix + raw.decode(self._encoding, self._errors)
+            return raw.decode(self._encoding, self._errors)
+
+        if size == 0:
+            return ""
+
+        parts: list[str] = []
+        remaining = size
+        if self._decoded_buffer:
+            take = self._decoded_buffer[:remaining]
+            parts.append(take)
+            self._decoded_buffer = self._decoded_buffer[len(take) :]
+            remaining -= len(take)
+            if remaining == 0:
+                return "".join(parts)
+
+        decoder = codecs.getincrementaldecoder(self._encoding)(errors=self._errors)
+        while remaining > 0:
+            chunk = self._handle.read(1)
+            if not chunk:
+                tail = decoder.decode(b"", final=True)
+                if tail:
+                    take = tail[:remaining]
+                    parts.append(take)
+                    self._decoded_buffer = tail[len(take) :] + self._decoded_buffer
+                break
+            decoded = decoder.decode(chunk, final=False)
+            if not decoded:
+                continue
+            take = decoded[:remaining]
+            parts.append(take)
+            remaining -= len(take)
+            if len(decoded) > len(take):
+                self._decoded_buffer = decoded[len(take) :] + self._decoded_buffer
+                break
+
+        return "".join(parts)
 
     def readline(self, limit: int = -1) -> str:
         """Read one line.
@@ -94,28 +132,26 @@ class MFSTextHandle:
         Parameters
         ----------
         limit:
-            Maximum number of bytes to read (``-1`` means unlimited).
+            Maximum number of characters to read (``-1`` means unlimited).
         """
-        buf = bytearray()
+        chars: list[str] = []
         while True:
-            if limit >= 0 and len(buf) >= limit:
+            if limit >= 0 and len(chars) >= limit:
                 break
-            b = self._handle.read(1)
-            if not b:
+            ch = self.read(1)
+            if not ch:
                 break
-            buf.extend(b)
-            if b == b"\n":
+            chars.append(ch)
+            if ch == "\n":
                 break
-            if b == b"\r":
-                # Peek at the next byte to determine \r\n vs bare \r
-                next_b = self._handle.read(1)
-                if next_b == b"\n":
-                    buf.extend(next_b)
-                elif next_b:
-                    # Bare \r: seek back one byte
-                    self._handle.seek(self._handle.tell() - 1)
+            if ch == "\r":
+                next_ch = self.read(1)
+                if next_ch == "\n":
+                    chars.append(next_ch)
+                elif next_ch:
+                    self._decoded_buffer = next_ch + self._decoded_buffer
                 break
-        return buf.decode(self._encoding, self._errors)
+        return "".join(chars)
 
     def __iter__(self) -> Iterator[str]:
         """Line iterator."""

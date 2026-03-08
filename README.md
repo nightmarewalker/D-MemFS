@@ -86,7 +86,9 @@ Supported binary modes: `rb`, `wb`, `ab`, `r+b`, `xb`
 
 ### `MemoryFileHandle`
 
+- `io.RawIOBase`-compatible binary handle
 - `read`, `write`, `seek`, `tell`, `truncate`, `flush`, `close`
+- `readinto`
 - file-like capability checks: `readable`, `writable`, `seekable`
 
 `flush()` is intentionally a no-op (compatibility API for file-like integrations).
@@ -123,7 +125,7 @@ with mfs.open("/data/hello.bin", "rb") as f:
         print(line, end="")
 ```
 
-`MFSTextHandle` is a thin, bufferless wrapper. It encodes on `write()` and decodes on `read()` / `readline()`. Unlike `io.TextIOWrapper`, it introduces no buffering issues when used with `MemoryFileHandle`.
+`MFSTextHandle` is a thin, bufferless wrapper. It encodes on `write()` and decodes on `read()` / `readline()`. `read(size)` counts characters, not bytes, so multibyte text can be read safely without splitting code points. Unlike `io.TextIOWrapper`, it introduces no buffering issues when used with `MemoryFileHandle`.
 
 ---
 

@@ -61,7 +61,7 @@ __all__ = [
     "AsyncMemoryFileSystem",
     "AsyncMemoryFileHandle",
 ]
-__version__ = "0.2.0"
+__version__ = "0.2.2"
 ```
 
 > **v12 設計判断**: `AsyncMemoryFileSystem` は `__getattr__` + `TYPE_CHECKING` ガードにより遅延インポートを実現する（spec_v12.md §6.4 準拠）。`asyncio` 未使用環境でのインポートコスト増を回避しつつ、`isinstance()` チェック、IDE補完、`help()` が正常に動作する。

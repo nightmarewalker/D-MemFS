@@ -98,6 +98,38 @@ def test_iter_export_tree(mfs):
     assert "/a.bin" in paths
 
 
+def test_export_as_bytesio_returns_detached_snapshot(mfs):
+    with mfs.open("/f.bin", "wb") as f:
+        f.write(b"old")
+
+    bio = mfs.export_as_bytesio("/f.bin")
+
+    with mfs.open("/f.bin", "wb") as f:
+        f.write(b"new")
+
+    assert bio.read() == b"old"
+    with mfs.open("/f.bin", "rb") as f:
+        assert f.read() == b"new"
+
+
+def test_iter_export_tree_skips_deleted_during_iteration(mfs):
+    with mfs.open("/a.bin", "wb") as f:
+        f.write(b"a")
+    with mfs.open("/b.bin", "wb") as f:
+        f.write(b"b")
+
+    iterator = mfs.iter_export_tree()
+    first_path, first_data = next(iterator)
+    assert first_data in (b"a", b"b")
+
+    mfs.remove("/b.bin")
+
+    rest = list(iterator)
+    assert first_path in {"/a.bin", "/b.bin"}
+    assert all(path != "/b.bin" for path, _ in rest)
+
+
+
 def test_roundtrip_export_import(mfs):
     with mfs.open("/data.bin", "wb") as f:
         f.write(b"round trip data")
