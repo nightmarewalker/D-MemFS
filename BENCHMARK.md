@@ -29,7 +29,18 @@ uvx --with-requirements requirements.txt --with-editable . python benchmarks/com
 
 # Save reports into benchmarks/results/
 uvx --with-requirements requirements.txt --with-editable . python benchmarks/compare_backends.py --save-md auto --save-json auto
+
+# Compare RAM disk vs SSD for tempfile backends
+uvx --with-requirements requirements.txt --with-editable . python benchmarks/compare_backends.py --ramdisk-dir /mnt/ramdisk --ssd-dir /tmp --save-md auto --save-json auto
+# Windows example:
+uvx --with-requirements requirements.txt --with-editable . python benchmarks/compare_backends.py --ramdisk-dir R:\Temp --ssd-dir C:\TempX --save-md auto --save-json auto
 ```
+
+### `--ramdisk-dir` / `--ssd-dir`
+
+When `--ramdisk-dir DIR` is provided, a `tempfile(RAMdisk)` backend is added that creates its temporary directory under `DIR`.  
+When `--ssd-dir DIR` is provided, a `tempfile(SSD)` backend is added similarly.  
+The plain `tempfile` backend always runs and uses the system default `%TEMP%` / `$TMPDIR`.
 
 When markdown/json reports are generated, the script also updates:
 
@@ -48,5 +59,5 @@ Saved reports are written under `benchmarks/results/` when `--save-md auto` or `
 ## Notes
 
 - `tracemalloc` reports Python-heap allocations; OS page cache and kernel-level effects are not fully represented.
-- `tempfile` results vary by OS, filesystem, and disk state. The included benchmark results were measured with the system `%TEMP%` directory located on a RAM disk. On a physical (SSD/HDD) disk, `tempfile` numbers will be significantly slower.
+- `tempfile` results vary by OS, filesystem, and disk state. The included benchmark results were measured with the system `%TEMP%` directory located on a RAM disk. On a physical (SSD/HDD) disk, `tempfile` numbers will be significantly slower. Use `--ramdisk-dir` and `--ssd-dir` to measure both in a single run and compare directly.
 - For fair comparisons, run on an idle machine and repeat multiple times.

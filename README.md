@@ -288,8 +288,8 @@ async def run() -> None:
 
 Minimal benchmark tooling is included:
 
-- MFS vs `io.BytesIO` vs `PyFilesystem2 (MemoryFS)` vs `tempfile`
-- Cases: many-small-files and stream write/read
+- D-MemFS vs `io.BytesIO` vs `PyFilesystem2 (MemoryFS)` vs `tempfile(RAMDisk)` / `tempfile(SSD)`
+- Cases: many-small-files, stream write/read, random access, large stream, deep tree
 - Optional report output to `benchmarks/results/`
 
 > **Note:** As of setuptools 82 (February 2026), `pyfilesystem2` fails to import due to a known upstream issue ([#597](https://github.com/PyFilesystem/pyfilesystem2/issues/597)). Benchmark results including PyFilesystem2 were measured with setuptools ≤ 81 and are valid as historical comparison data.
@@ -297,7 +297,8 @@ Minimal benchmark tooling is included:
 Run:
 
 ```bash
-uvx --with-requirements requirements.txt --with-editable . python benchmarks/compare_backends.py --save-md auto --save-json auto
+# With explicit RAM disk and SSD directories for tempfile comparison:
+uvx --with-requirements requirements.txt --with-editable . python benchmarks/compare_backends.py --ramdisk-dir R:\Temp --ssd-dir C:\TempX --save-md auto --save-json auto
 ```
 
 See `BENCHMARK.md` for details.
@@ -419,19 +420,20 @@ Design documents (Japanese):
 
 ## Performance Summary
 
-Key results from the included benchmark (300 small files × 4 KiB, 16 MiB stream, 2 GiB large stream):
+Key results from the included benchmark (300 small files × 4 KiB, 16 MiB stream, 512 MiB large stream):
 
-| Case | MFS (ms) | BytesIO (ms) | tempfile (ms) |
-|---|---:|---:|---:|
-| small_files_rw | 34 | 5 | 164 |
-| stream_write_read | 64 | 51 | 17 |
-| random_access_rw | **24** | 53 | 27 |
-| large_stream_write_read | **1 438** | 7 594 | 1 931 |
-| many_files_random_read | 777 | 163 | 4 745 |
+| Case | D-MemFS (ms) | BytesIO (ms) | tempfile(RAMDisk) (ms) | tempfile(SSD) (ms) |
+|---|---:|---:|---:|---:|
+| small_files_rw | 51 | 6 | 207 | 267 |
+| stream_write_read | 81 | 62 | 20 | 21 |
+| random_access_rw | **34** | 82 | 37 | 35 |
+| large_stream_write_read | **529** | 2 258 | 514 | 541 |
+| many_files_random_read | 1 280 | 212 | 6 310 | 8 601 |
+| deep_tree_read | 224 | 3 | 346 | 361 |
 
-MFS incurs a small overhead on tiny-file workloads but delivers significantly better performance on large streams and random-access patterns compared with `BytesIO`. See `BENCHMARK.md` and [benchmark_current_result.md](https://github.com/nightmarewalker/D-MemFS/blob/main/benchmarks/results/benchmark_current_result.md) for full data.
+D-MemFS incurs a small overhead on tiny-file workloads but delivers significantly better performance on large streams and random-access patterns compared with `BytesIO`. See `BENCHMARK.md` and [benchmark_current_result.md](https://github.com/nightmarewalker/D-MemFS/blob/main/benchmarks/results/benchmark_current_result.md) for full data.
 
-> **Note:** `tempfile` results above were measured with the system temp directory on a RAM disk. On a physical SSD/HDD, `tempfile` performance will be substantially slower.
+> **Note:** `tempfile(RAMDisk)` results were measured with the temp directory on a RAM disk; `tempfile(SSD)` results use a physical SSD. Use `--ramdisk-dir` and `--ssd-dir` options to reproduce both variants in a single run.
 
 ---
 

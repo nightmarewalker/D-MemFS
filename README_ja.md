@@ -286,8 +286,8 @@ async def run() -> None:
 
 最小構成の比較ベンチマークを同梱しています。
 
-- MFS vs `io.BytesIO` vs `PyFilesystem2 (MemoryFS)` vs `tempfile`
-- ケース: 小ファイル大量 read/write、ストリーム write/read
+- D-MemFS vs `io.BytesIO` vs `PyFilesystem2 (MemoryFS)` vs `tempfile(RAMDisk)` / `tempfile(SSD)`
+- ケース: 小ファイル大量 read/write、ストリーム write/read、ランダムアクセス、大容量ストリーム、深いツリー
 - レポートを `benchmarks/results/` へ保存可能
 
 > **注意:** setuptools 82（2026年2月）以降、`pyfilesystem2` は既知のアップストリーム問題（[#597](https://github.com/PyFilesystem/pyfilesystem2/issues/597)）により import 不能になっています。PyFilesystem2 を含むベンチマーク結果は setuptools ≤ 81 の環境で計測したものであり、比較データとして有効ですが、現在の環境では再現できません。
@@ -295,7 +295,8 @@ async def run() -> None:
 実行例:
 
 ```bash
-uvx --with-requirements requirements.txt --with-editable . python benchmarks/compare_backends.py --save-md auto --save-json auto
+# RAMディスクとSSDのディレクトリを指定して tempfile を比較する場合:
+uvx --with-requirements requirements.txt --with-editable . python benchmarks/compare_backends.py --ramdisk-dir R:\Temp --ssd-dir C:\TempX --save-md auto --save-json auto
 ```
 
 詳細は `BENCHMARK.md` を参照してください。
@@ -413,19 +414,20 @@ def test_write_read(mfs):
 
 ## パフォーマンスサマリー
 
-同梱ベンチマークの主要結果（小ファイル300個×4KiB、16MiBストリーム、2GiB大容量ストリーム）:
+同梱ベンチマークの主要結果（小ファイル300個×4KiB、16MiBストリーム、512MiB大容量ストリーム）:
 
-| ケース | MFS (ms) | BytesIO (ms) | tempfile (ms) |
-|---|---:|---:|---:|
-| small_files_rw | 34 | 5 | 164 |
-| stream_write_read | 64 | 51 | 17 |
-| random_access_rw | **24** | 53 | 27 |
-| large_stream_write_read | **1 438** | 7 594 | 1 931 |
-| many_files_random_read | 777 | 163 | 4 745 |
+| ケース | D-MemFS (ms) | BytesIO (ms) | tempfile(RAMDisk) (ms) | tempfile(SSD) (ms) |
+|---|---:|---:|---:|---:|
+| small_files_rw | 51 | 6 | 207 | 267 |
+| stream_write_read | 81 | 62 | 20 | 21 |
+| random_access_rw | **34** | 82 | 37 | 35 |
+| large_stream_write_read | **529** | 2 258 | 514 | 541 |
+| many_files_random_read | 1 280 | 212 | 6 310 | 8 601 |
+| deep_tree_read | 224 | 3 | 346 | 361 |
 
-MFS は小ファイルワークロードでわずかなオーバーヘッドがありますが、大容量ストリームやランダムアクセスパターンでは `BytesIO` と比べて大幅に高速です。詳細は `BENCHMARK.md` および [benchmark_current_result.md](https://github.com/nightmarewalker/D-MemFS/blob/main/benchmarks/results/benchmark_current_result.md) を参照してください。
+D-MemFS は小ファイルワークロードでわずかなオーバーヘッドがありますが、大容量ストリームやランダムアクセスパターンでは `BytesIO` と比べて大幅に高速です。詳細は `BENCHMARK.md` および [benchmark_current_result.md](https://github.com/nightmarewalker/D-MemFS/blob/main/benchmarks/results/benchmark_current_result.md) を参照してください。
 
-> **注意:** 上記の `tempfile` の結果は、システムの TEMP ディレクトリが RAM ディスク上にある環境で計測したものです。物理 SSD/HDD 環境では `tempfile` の数値は大幅に遅くなります。
+> **注意:** `tempfile(RAMDisk)` の結果は RAM ディスク上の TEMP ディレクトリで計測、`tempfile(SSD)` は物理 SSD 上で計測したものです。`--ramdisk-dir` / `--ssd-dir` オプションで両パターンを一度に再現できます。
 
 ---
 

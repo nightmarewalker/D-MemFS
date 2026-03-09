@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import argparse
 from datetime import datetime
@@ -68,9 +68,9 @@ def bench_bytesio_small_files(file_count: int, file_size: int) -> None:
         raise RuntimeError("BytesIO small-files benchmark validation failed")
 
 
-def bench_tempfs_small_files(file_count: int, file_size: int) -> None:
+def bench_tempfs_small_files(file_count: int, file_size: int, tmpdir: str | None = None) -> None:
     payload = b"x" * file_size
-    with tempfile.TemporaryDirectory() as td:
+    with tempfile.TemporaryDirectory(dir=tmpdir) as td:
         root = os.path.join(td, "bench")
         os.makedirs(root, exist_ok=True)
         for i in range(file_count):
@@ -128,10 +128,10 @@ def bench_bytesio_stream(total_bytes: int, chunk_bytes: int) -> None:
         raise RuntimeError("BytesIO stream benchmark validation failed")
 
 
-def bench_tempfs_stream(total_bytes: int, chunk_bytes: int) -> None:
+def bench_tempfs_stream(total_bytes: int, chunk_bytes: int, tmpdir: str | None = None) -> None:
     chunk = b"y" * chunk_bytes
     loops = total_bytes // chunk_bytes
-    with tempfile.TemporaryDirectory() as td:
+    with tempfile.TemporaryDirectory(dir=tmpdir) as td:
         path = os.path.join(td, "stream.bin")
         with open(path, "wb") as f:
             for _ in range(loops):
@@ -195,12 +195,12 @@ def bench_bytesio_random_access(total_bytes: int, chunk_bytes: int) -> None:
         raise RuntimeError("BytesIO random-access benchmark validation failed")
 
 
-def bench_tempfs_random_access(total_bytes: int, chunk_bytes: int) -> None:
+def bench_tempfs_random_access(total_bytes: int, chunk_bytes: int, tmpdir: str | None = None) -> None:
     chunk = b"z" * chunk_bytes
     loops = total_bytes // chunk_bytes
     import random as _rng
     gen = _rng.Random(42)
-    with tempfile.TemporaryDirectory() as td:
+    with tempfile.TemporaryDirectory(dir=tmpdir) as td:
         path = os.path.join(td, "random.bin")
         with open(path, "wb") as f:
             for _ in range(loops):
@@ -277,10 +277,10 @@ def bench_bytesio_large_stream(total_bytes: int, chunk_bytes: int) -> None:
         raise RuntimeError("BytesIO large-stream benchmark validation failed")
 
 
-def bench_tempfs_large_stream(total_bytes: int, chunk_bytes: int) -> None:
+def bench_tempfs_large_stream(total_bytes: int, chunk_bytes: int, tmpdir: str | None = None) -> None:
     chunk = b"L" * chunk_bytes
     loops = total_bytes // chunk_bytes
-    with tempfile.TemporaryDirectory() as td:
+    with tempfile.TemporaryDirectory(dir=tmpdir) as td:
         path = os.path.join(td, "large.bin")
         with open(path, "wb") as f:
             for _ in range(loops):
@@ -356,13 +356,13 @@ def bench_bytesio_many_files_random(file_count: int, file_size: int) -> None:
         raise RuntimeError("BytesIO many-files-random benchmark validation failed")
 
 
-def bench_tempfs_many_files_random(file_count: int, file_size: int) -> None:
+def bench_tempfs_many_files_random(file_count: int, file_size: int, tmpdir: str | None = None) -> None:
     payload = b"m" * file_size
     import random as _rng
     gen = _rng.Random(42)
     read_count = file_count // 2
     indices = [gen.randint(0, file_count - 1) for _ in range(read_count)]
-    with tempfile.TemporaryDirectory() as td:
+    with tempfile.TemporaryDirectory(dir=tmpdir) as td:
         for i in range(file_count):
             path = os.path.join(td, f"f{i:06d}.bin")
             with open(path, "wb") as f:
@@ -431,9 +431,9 @@ def bench_bytesio_deep_tree(depth: int) -> None:
         raise RuntimeError("BytesIO deep-tree benchmark validation failed")
 
 
-def bench_tempfs_deep_tree(depth: int) -> None:
+def bench_tempfs_deep_tree(depth: int, tmpdir: str | None = None) -> None:
     payload = b"d" * 1024
-    with tempfile.TemporaryDirectory() as td:
+    with tempfile.TemporaryDirectory(dir=tmpdir) as td:
         parts = [f"d{i}" for i in range(depth)]
         deep_dir = os.path.join(td, *parts)
         os.makedirs(deep_dir, exist_ok=True)
@@ -540,6 +540,12 @@ def _results_markdown(results: list[CaseResult], args: argparse.Namespace) -> st
         f"- large_chunk_kb: `{args.large_chunk_kb}`",
         f"- many_files_count: `{args.many_files_count}`",
         f"- deep_levels: `{args.deep_levels}`",
+    ]
+    if getattr(args, "ramdisk_dir", ""):
+        lines.append(f"- ramdisk_dir: `{args.ramdisk_dir}`")
+    if getattr(args, "ssd_dir", ""):
+        lines.append(f"- ssd_dir: `{args.ssd_dir}`")
+    lines += [
         "",
         "| Case | Backend | mean(ms) | min(ms) | max(ms) | peak KiB (mean) |",
         "|---|---:|---:|---:|---:|---:|",
@@ -589,6 +595,16 @@ def main() -> None:
     parser.add_argument("--large-chunk-kb", type=int, default=1024)
     parser.add_argument("--many-files-count", type=int, default=10000)
     parser.add_argument("--deep-levels", type=int, default=50)
+    parser.add_argument(
+        "--ramdisk-dir",
+        default="",
+        help="Directory on a RAM disk; adds tempfile(RAMDisk) backend when set",
+    )
+    parser.add_argument(
+        "--ssd-dir",
+        default="",
+        help="Directory on a physical SSD; adds tempfile(SSD) backend when set",
+    )
     args = parser.parse_args()
 
     total_bytes = args.stream_size_mb * 1024 * 1024
@@ -600,7 +616,7 @@ def main() -> None:
 
     results.append(
         run_case(
-            "MFS",
+            "D-MemFS",
             "small_files_rw",
             lambda: bench_mfs_small_files(args.small_files, args.small_size),
             args.repeat,
@@ -625,19 +641,40 @@ def main() -> None:
             args.warmup,
         )
     )
-    results.append(
-        run_case(
-            "tempfile",
-            "small_files_rw",
-            lambda: bench_tempfs_small_files(args.small_files, args.small_size),
-            args.repeat,
-            args.warmup,
+    if not (args.ramdisk_dir or args.ssd_dir):
+        results.append(
+            run_case(
+                "tempfile",
+                "small_files_rw",
+                lambda: bench_tempfs_small_files(args.small_files, args.small_size),
+                args.repeat,
+                args.warmup,
+            )
         )
-    )
+    if args.ramdisk_dir:
+        results.append(
+            run_case(
+                "tempfile(RAMDisk)",
+                "small_files_rw",
+                lambda: bench_tempfs_small_files(args.small_files, args.small_size, args.ramdisk_dir),
+                args.repeat,
+                args.warmup,
+            )
+        )
+    if args.ssd_dir:
+        results.append(
+            run_case(
+                "tempfile(SSD)",
+                "small_files_rw",
+                lambda: bench_tempfs_small_files(args.small_files, args.small_size, args.ssd_dir),
+                args.repeat,
+                args.warmup,
+            )
+        )
 
     results.append(
         run_case(
-            "MFS",
+            "D-MemFS",
             "stream_write_read",
             lambda: bench_mfs_stream(total_bytes, chunk_bytes),
             args.repeat,
@@ -662,19 +699,40 @@ def main() -> None:
             args.warmup,
         )
     )
-    results.append(
-        run_case(
-            "tempfile",
-            "stream_write_read",
-            lambda: bench_tempfs_stream(total_bytes, chunk_bytes),
-            args.repeat,
-            args.warmup,
+    if not (args.ramdisk_dir or args.ssd_dir):
+        results.append(
+            run_case(
+                "tempfile",
+                "stream_write_read",
+                lambda: bench_tempfs_stream(total_bytes, chunk_bytes),
+                args.repeat,
+                args.warmup,
+            )
         )
-    )
+    if args.ramdisk_dir:
+        results.append(
+            run_case(
+                "tempfile(RAMDisk)",
+                "stream_write_read",
+                lambda: bench_tempfs_stream(total_bytes, chunk_bytes, args.ramdisk_dir),
+                args.repeat,
+                args.warmup,
+            )
+        )
+    if args.ssd_dir:
+        results.append(
+            run_case(
+                "tempfile(SSD)",
+                "stream_write_read",
+                lambda: bench_tempfs_stream(total_bytes, chunk_bytes, args.ssd_dir),
+                args.repeat,
+                args.warmup,
+            )
+        )
 
     results.append(
         run_case(
-            "MFS",
+            "D-MemFS",
             "random_access_rw",
             lambda: bench_mfs_random_access(total_bytes, chunk_bytes),
             args.repeat,
@@ -699,20 +757,41 @@ def main() -> None:
             args.warmup,
         )
     )
-    results.append(
-        run_case(
-            "tempfile",
-            "random_access_rw",
-            lambda: bench_tempfs_random_access(total_bytes, chunk_bytes),
-            args.repeat,
-            args.warmup,
+    if not (args.ramdisk_dir or args.ssd_dir):
+        results.append(
+            run_case(
+                "tempfile",
+                "random_access_rw",
+                lambda: bench_tempfs_random_access(total_bytes, chunk_bytes),
+                args.repeat,
+                args.warmup,
+            )
         )
-    )
+    if args.ramdisk_dir:
+        results.append(
+            run_case(
+                "tempfile(RAMDisk)",
+                "random_access_rw",
+                lambda: bench_tempfs_random_access(total_bytes, chunk_bytes, args.ramdisk_dir),
+                args.repeat,
+                args.warmup,
+            )
+        )
+    if args.ssd_dir:
+        results.append(
+            run_case(
+                "tempfile(SSD)",
+                "random_access_rw",
+                lambda: bench_tempfs_random_access(total_bytes, chunk_bytes, args.ssd_dir),
+                args.repeat,
+                args.warmup,
+            )
+        )
 
     # --- Large stream (512MB–2GB) ---
     results.append(
         run_case(
-            "MFS",
+            "D-MemFS",
             "large_stream_write_read",
             lambda: bench_mfs_large_stream(large_total, large_chunk),
             args.repeat,
@@ -737,20 +816,41 @@ def main() -> None:
             args.warmup,
         )
     )
-    results.append(
-        run_case(
-            "tempfile",
-            "large_stream_write_read",
-            lambda: bench_tempfs_large_stream(large_total, large_chunk),
-            args.repeat,
-            args.warmup,
+    if not (args.ramdisk_dir or args.ssd_dir):
+        results.append(
+            run_case(
+                "tempfile",
+                "large_stream_write_read",
+                lambda: bench_tempfs_large_stream(large_total, large_chunk),
+                args.repeat,
+                args.warmup,
+            )
         )
-    )
+    if args.ramdisk_dir:
+        results.append(
+            run_case(
+                "tempfile(RAMDisk)",
+                "large_stream_write_read",
+                lambda: bench_tempfs_large_stream(large_total, large_chunk, args.ramdisk_dir),
+                args.repeat,
+                args.warmup,
+            )
+        )
+    if args.ssd_dir:
+        results.append(
+            run_case(
+                "tempfile(SSD)",
+                "large_stream_write_read",
+                lambda: bench_tempfs_large_stream(large_total, large_chunk, args.ssd_dir),
+                args.repeat,
+                args.warmup,
+            )
+        )
 
     # --- Many files random read ---
     results.append(
         run_case(
-            "MFS",
+            "D-MemFS",
             "many_files_random_read",
             lambda: bench_mfs_many_files_random(args.many_files_count, args.small_size),
             args.repeat,
@@ -775,20 +875,41 @@ def main() -> None:
             args.warmup,
         )
     )
-    results.append(
-        run_case(
-            "tempfile",
-            "many_files_random_read",
-            lambda: bench_tempfs_many_files_random(args.many_files_count, args.small_size),
-            args.repeat,
-            args.warmup,
+    if not (args.ramdisk_dir or args.ssd_dir):
+        results.append(
+            run_case(
+                "tempfile",
+                "many_files_random_read",
+                lambda: bench_tempfs_many_files_random(args.many_files_count, args.small_size),
+                args.repeat,
+                args.warmup,
+            )
         )
-    )
+    if args.ramdisk_dir:
+        results.append(
+            run_case(
+                "tempfile(RAMDisk)",
+                "many_files_random_read",
+                lambda: bench_tempfs_many_files_random(args.many_files_count, args.small_size, args.ramdisk_dir),
+                args.repeat,
+                args.warmup,
+            )
+        )
+    if args.ssd_dir:
+        results.append(
+            run_case(
+                "tempfile(SSD)",
+                "many_files_random_read",
+                lambda: bench_tempfs_many_files_random(args.many_files_count, args.small_size, args.ssd_dir),
+                args.repeat,
+                args.warmup,
+            )
+        )
 
     # --- Deep tree read ---
     results.append(
         run_case(
-            "MFS",
+            "D-MemFS",
             "deep_tree_read",
             lambda: bench_mfs_deep_tree(args.deep_levels),
             args.repeat,
@@ -813,15 +934,36 @@ def main() -> None:
             args.warmup,
         )
     )
-    results.append(
-        run_case(
-            "tempfile",
-            "deep_tree_read",
-            lambda: bench_tempfs_deep_tree(args.deep_levels),
-            args.repeat,
-            args.warmup,
+    if not (args.ramdisk_dir or args.ssd_dir):
+        results.append(
+            run_case(
+                "tempfile",
+                "deep_tree_read",
+                lambda: bench_tempfs_deep_tree(args.deep_levels),
+                args.repeat,
+                args.warmup,
+            )
         )
-    )
+    if args.ramdisk_dir:
+        results.append(
+            run_case(
+                "tempfile(RAMDisk)",
+                "deep_tree_read",
+                lambda: bench_tempfs_deep_tree(args.deep_levels, args.ramdisk_dir),
+                args.repeat,
+                args.warmup,
+            )
+        )
+    if args.ssd_dir:
+        results.append(
+            run_case(
+                "tempfile(SSD)",
+                "deep_tree_read",
+                lambda: bench_tempfs_deep_tree(args.deep_levels, args.ssd_dir),
+                args.repeat,
+                args.warmup,
+            )
+        )
 
     if args.json:
         print(json.dumps(_results_to_dict(results), indent=2))
