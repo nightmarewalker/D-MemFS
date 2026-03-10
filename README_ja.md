@@ -6,8 +6,20 @@
 [![Tests](https://github.com/nightmarewalker/D-MemFS/actions/workflows/test.yml/badge.svg)](https://github.com/nightmarewalker/D-MemFS/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/nightmarewalker/D-MemFS/blob/main/LICENSE)
 [![Zero dependencies (runtime)](https://img.shields.io/badge/runtime_deps-none-brightgreen.svg)]()
+[![PyPI version](https://img.shields.io/pypi/v/D-MemFS.svg)](https://pypi.org/project/D-MemFS/)
+[![Socket Badge](https://socket.dev/api/badge/pypi/package/D-MemFS)](https://socket.dev/pypi/package/D-MemFS)
 
 言語: [英語（デフォルト）](https://github.com/nightmarewalker/D-MemFS/blob/main/README.md) | [日本語](https://github.com/nightmarewalker/D-MemFS/blob/main/README_ja.md)
+
+---
+
+## 実績
+
+| 指標 | 実績 |
+|---|---|
+| 🚀 **実用性** | リリース後10日間で190回以上クローン |
+| 🧪 **堅牢性** | 346テスト、カバレッジ97% |
+| 🔒 **安全性の検証** | 98, 100×4 — 全セキュリティカテゴリでトップスコア（Socket.dev） |
 
 ---
 

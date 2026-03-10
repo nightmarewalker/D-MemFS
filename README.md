@@ -6,8 +6,20 @@
 [![Tests](https://github.com/nightmarewalker/D-MemFS/actions/workflows/test.yml/badge.svg)](https://github.com/nightmarewalker/D-MemFS/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/nightmarewalker/D-MemFS/blob/main/LICENSE)
 [![Zero dependencies (runtime)](https://img.shields.io/badge/runtime_deps-none-brightgreen.svg)]()
+[![PyPI version](https://img.shields.io/pypi/v/D-MemFS.svg)](https://pypi.org/project/D-MemFS/)
+[![Socket Badge](https://socket.dev/api/badge/pypi/package/D-MemFS)](https://socket.dev/pypi/package/D-MemFS)
 
 Languages: [English](https://github.com/nightmarewalker/D-MemFS/blob/main/README.md) | [Japanese](https://github.com/nightmarewalker/D-MemFS/blob/main/README_ja.md)
+
+---
+
+## Proven Quality
+
+| Metric | Details |
+|---|---|
+| 🚀 **Practical Utility** | Over 190 clones within the first 10 days of release |
+| 🧪 **Robustness** | 346 tests with 97% code coverage |
+| 🔒 **Verified Safety** | 98, 100×4 — top scores across all security categories (Socket.dev) |
 
 ---
 
