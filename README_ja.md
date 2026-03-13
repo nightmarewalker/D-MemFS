@@ -17,9 +17,9 @@
 
 | 指標 | 実績 |
 |---|---|
-| 🧪 **堅牢性** | 346テスト、カバレッジ97% |
+| 🧪 **堅牢性** | 369テスト、カバレッジ97% |
 | 🔒 **安全性の検証** | 98, 100×4 — 全セキュリティカテゴリでトップスコア（Socket.dev） |
-
+| 🌟 **コミュニティ** | [`r/Python` にて議論され、高い評価を獲得](https://www.reddit.com/r/Python/comments/1rrqr8z/i_built_an_inmemory_virtual_filesystem_for_python/) |
 ---
 
 ## なぜ MFS なのか
@@ -37,6 +37,30 @@
 - **346テスト、カバレッジ97%** — 3 OS（Linux / Windows / macOS）× 3 Python バージョン（3.11〜3.13、フリースレッド 3.13t 含む）で検証済み
 
 `io.BytesIO` が単一バッファで不足する場合や、OSレベルのRAMディスク/tmpfsが使いにくい環境（権限制約、コンテナポリシー、Windowsの運用負荷）で有効です。**CI パイプラインの高速化**にも最適——インフラ変更なしにテストやデータ処理からディスク I/O を排除できます。
+
+**アーキテクチャの境界に関する注意:** 本ライブラリは完全にプロセス内のツールです。外部のサブプロセス（CLIツールなど）は、標準的なOSのパスを経由してこれらのファイルにアクセスすることはできません。外部バイナリへのファイル受け渡しを多用するパイプラインの場合は、OSレベルのRAMディスク（`tmpfs`）が適しています。D-MemFSは、Pythonネイティブなテストスイートや内部データパイプラインの高速化において真価を発揮します。
+
+---
+
+### アーカイブのインメモリ解凍
+巨大なZIPやTARアーカイブをすべてメモリ上で解凍し、オンザフライで内容を処理します。ディスクの摩耗（TBW）を防ぎ、ゴミファイルが残るリスクを排除します。
+* 📝 **チュートリアル:** [`examples/archive_extraction.md`](examples/archive_extraction.md)
+
+### CI/CDパイプラインとテストのデバッグ
+重いファイルI/Oを伴うテストをすべてメモリ上で実行し、パイプラインを高速化します。テストが失敗した場合は、仮想ファイルシステム全体の状態を物理ディレクトリに書き出し（`export_tree`）、事後デバッグを容易にします。
+* 📝 **チュートリアル:** [`examples/ci_debug_export.md`](examples/ci_debug_export.md)
+
+### 高速なSQLiteテストフィクスチャ
+データベースのテストスイートにおけるディスクI/Oのボトルネックを解消します。マスターとなるSQLiteデータベースの状態を一度だけ生成してD-MemFSに保存し、各テストで瞬時にロードします。ディスク摩耗ゼロ・クリーンアップ不要で、完璧なテストの独立性を保証します。
+* 📝 **チュートリアル:** [`examples/sqlite_test_fixtures.md`](examples/sqlite_test_fixtures.md)
+
+### マルチスレッドでのデータステージング（ETL）
+ETLパイプラインにおける揮発性の高速なステージング領域としてD-MemFSを使用します。スレッドセーフなファイルロック機構を内蔵しており、安全な並行データ処理を保証します。
+* 📝 **チュートリアル:** [`examples/etl_staging_multithread.md`](examples/etl_staging_multithread.md)
+
+### 安全な巨大ファイルの処理（サーバーレス/サンドボックス）
+メモリガード（Memory Guard）を使用し、巨大なファイルをチャンク単位で処理します。OSレベルのRAMディスクが使えない環境において、ホストOSがメモリ不足（OOM）でクラッシュする*前に*安全に例外を送出します。
+* 📝 **チュートリアル:** [`examples/memory_guard_streaming.md`](examples/memory_guard_streaming.md)
 
 ---
 
@@ -187,74 +211,18 @@ with mfs.open("/data/hello.bin", "rb") as f:
 
 ---
 
-## ユースケースチュートリアル
-
-### ETL ステージング
-
-raw → processed → output のディレクトリ構成でデータを段階処理する例:
+## Async 利用
 
 ```python
-from dmemfs import MemoryFileSystem
+from dmemfs import AsyncMemoryFileSystem
 
-mfs = MemoryFileSystem(max_quota=16 * 1024 * 1024)
-mfs.mkdir("/raw")
-mfs.mkdir("/processed")
-
-raw_data = b"id,name,value\n1,foo,100\n2,bar,200\n"
-with mfs.open("/raw/data.csv", "wb") as f:
-    f.write(raw_data)
-
-with mfs.open("/raw/data.csv", "rb") as f:
-    data = f.read()
-
-with mfs.open("/processed/data.csv", "wb") as f:
-    f.write(data.upper())
-
-mfs.rmtree("/raw")  # ステージング領域をクリーンアップ
-```
-
-### アーカイブ操作
-
-複数ファイルをツリーとして格納・一覧表示・エクスポートする例:
-
-```python
-from dmemfs import MemoryFileSystem
-
-mfs = MemoryFileSystem()
-mfs.import_tree({
-    "/archive/doc1.bin": b"Document 1",
-    "/archive/doc2.bin": b"Document 2",
-    "/archive/sub/doc3.bin": b"Document 3",
-})
-
-print(mfs.listdir("/archive"))  # ['doc1.bin', 'doc2.bin', 'sub']
-
-snapshot = mfs.export_tree(prefix="/archive")  # {パス: bytes} の辞書
-```
-
-### SQLite スナップショット
-
-インメモリ SQLite DB を MFS に保存して後から復元する例:
-
-```python
-import sqlite3
-from dmemfs import MemoryFileSystem
-
-mfs = MemoryFileSystem()
-conn = sqlite3.connect(":memory:")
-conn.execute("CREATE TABLE t (id INTEGER, val TEXT)")
-conn.execute("INSERT INTO t VALUES (1, 'hello')")
-conn.commit()
-
-with mfs.open("/snapshot.db", "wb") as f:
-    f.write(conn.serialize())
-conn.close()
-
-with mfs.open("/snapshot.db", "rb") as f:
-    raw = f.read()
-restored = sqlite3.connect(":memory:")
-restored.deserialize(raw)
-rows = restored.execute("SELECT * FROM t").fetchall()  # [(1, 'hello')]
+async def run() -> None:
+    mfs = AsyncMemoryFileSystem(max_quota=64 * 1024 * 1024)
+    await mfs.mkdir("/a")
+    async with await mfs.open("/a/f.bin", "wb") as f:
+        await f.write(b"data")
+    async with await mfs.open("/a/f.bin", "rb") as f:
+        print(await f.read())
 ```
 
 ---
@@ -274,22 +242,6 @@ rows = restored.execute("SELECT * FROM t").fetchall()  # [(1, 'hello')]
 - ロック保持時間を短くする
 - レイテンシに厳しい経路では `lock_timeout` を明示する
 - `walk()` と `glob()` は弱一貫性を提供します: 各ディレクトリレベルは `_global_lock` 下でスナップショットを取得しますが、走査全体はアトミックではありません。並行した構造変更により、不整合な結果が返る可能性があります。
-
----
-
-## Async 利用
-
-```python
-from dmemfs import AsyncMemoryFileSystem
-
-async def run() -> None:
-    mfs = AsyncMemoryFileSystem(max_quota=64 * 1024 * 1024)
-    await mfs.mkdir("/a")
-    async with await mfs.open("/a/f.bin", "wb") as f:
-        await f.write(b"data")
-    async with await mfs.open("/a/f.bin", "rb") as f:
-        print(await f.read())
-```
 
 ---
 

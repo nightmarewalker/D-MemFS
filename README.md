@@ -17,9 +17,9 @@ Languages: [English](https://github.com/nightmarewalker/D-MemFS/blob/main/README
 
 | Metric | Details |
 |---|---|
-| 🧪 **Robustness** | 346 tests with 97% code coverage |
+| 🧪 **Robustness** | 369 tests with 97% code coverage |
 | 🔒 **Verified Safety** | 98, 100×4 — top scores across all security categories (Socket.dev) |
-
+| 🌟 **Community** | [Discussed on `r/Python`](https://www.reddit.com/r/Python/comments/1rrqr8z/i_built_an_inmemory_virtual_filesystem_for_python/) with highly positive reception |
 ---
 
 ## Why MFS?
@@ -37,6 +37,30 @@ Languages: [English](https://github.com/nightmarewalker/D-MemFS/blob/main/README
 - **346 tests, 97% coverage** across 3 OS (Linux / Windows / macOS) × 3 Python versions (3.11–3.13, including free-threaded 3.13t)
 
 This is useful when `io.BytesIO` is too primitive (single buffer), and OS-level RAM disks/tmpfs are impractical (permissions, container policy, Windows driver friction). Ideal for **CI pipeline acceleration** — eliminate disk I/O from test suites and data processing without any infrastructure changes.
+
+**Note on Architectural Boundary:** This is strictly an in-process tool. External subprocesses (CLI tools) cannot access these files via standard OS paths. If your pipeline relies heavily on passing files to external binaries, an OS-level RAM disk (`tmpfs`) is the correct tool. D-MemFS shines when accelerating Python-native test suites or internal data pipelines.
+
+---
+
+### Archive Extraction In-Memory
+Extract large ZIP or TAR archives entirely in-memory to process their contents on the fly. Prevent disk wear (TBW) and eliminate the risk of leaving garbage files behind.
+* 📝 **Tutorial:** [`examples/archive_extraction.md`](examples/archive_extraction.md)
+
+### CI/CD Pipelines & Test Debugging
+Speed up your pipeline by running heavy file I/O tests entirely in memory. If a test fails, export the complete virtual filesystem state to a physical directory (`export_tree`) for easy post-mortem debugging.
+* 📝 **Tutorial:** [`examples/ci_debug_export.md`](examples/ci_debug_export.md)
+
+### High-Speed SQLite Test Fixtures
+Eliminate disk I/O bottlenecks in your database test suites. Generate a master SQLite database state once, store it in D-MemFS, and load it instantly for each individual test. Ensure perfect test isolation with zero disk wear and zero cleanup.
+* 📝 **Tutorial:** [`examples/sqlite_test_fixtures.md`](examples/sqlite_test_fixtures.md)
+
+### Multi-threaded Data Staging (ETL)
+Use D-MemFS as a volatile, high-speed staging area for ETL pipelines. It features built-in, thread-safe file locking, ensuring safe concurrent data processing.
+* 📝 **Tutorial:** [`examples/etl_staging_multithread.md`](examples/etl_staging_multithread.md)
+
+### Safe Large File Processing (Serverless/Sandboxed)
+Process massive files chunk-by-chunk using our Memory Guard. Safely raise an exception *before* the host OS hits an Out-Of-Memory (OOM) crash, which is crucial for environments without OS-level RAM disks.
+* 📝 **Tutorial:** [`examples/memory_guard_streaming.md`](examples/memory_guard_streaming.md)
 
 ---
 
@@ -187,74 +211,18 @@ with mfs.open("/data/hello.bin", "rb") as f:
 
 ---
 
-## Use Case Tutorials
-
-### ETL Staging
-
-Stage data through raw → processed → output directories:
+## Async Usage
 
 ```python
-from dmemfs import MemoryFileSystem
+from dmemfs import AsyncMemoryFileSystem
 
-mfs = MemoryFileSystem(max_quota=16 * 1024 * 1024)
-mfs.mkdir("/raw")
-mfs.mkdir("/processed")
-
-raw_data = b"id,name,value\n1,foo,100\n2,bar,200\n"
-with mfs.open("/raw/data.csv", "wb") as f:
-    f.write(raw_data)
-
-with mfs.open("/raw/data.csv", "rb") as f:
-    data = f.read()
-
-with mfs.open("/processed/data.csv", "wb") as f:
-    f.write(data.upper())
-
-mfs.rmtree("/raw")  # cleanup staging
-```
-
-### Archive-like Operations
-
-Store, list, and export multiple files as a tree:
-
-```python
-from dmemfs import MemoryFileSystem
-
-mfs = MemoryFileSystem()
-mfs.import_tree({
-    "/archive/doc1.bin": b"Document 1",
-    "/archive/doc2.bin": b"Document 2",
-    "/archive/sub/doc3.bin": b"Document 3",
-})
-
-print(mfs.listdir("/archive"))  # ['doc1.bin', 'doc2.bin', 'sub']
-
-snapshot = mfs.export_tree(prefix="/archive")  # dict of {path: bytes}
-```
-
-### SQLite Snapshot
-
-Serialize an in-memory SQLite DB into MFS and restore it later:
-
-```python
-import sqlite3
-from dmemfs import MemoryFileSystem
-
-mfs = MemoryFileSystem()
-conn = sqlite3.connect(":memory:")
-conn.execute("CREATE TABLE t (id INTEGER, val TEXT)")
-conn.execute("INSERT INTO t VALUES (1, 'hello')")
-conn.commit()
-
-with mfs.open("/snapshot.db", "wb") as f:
-    f.write(conn.serialize())
-conn.close()
-
-with mfs.open("/snapshot.db", "rb") as f:
-    raw = f.read()
-restored = sqlite3.connect(":memory:")
-restored.deserialize(raw)
-rows = restored.execute("SELECT * FROM t").fetchall()  # [(1, 'hello')]
+async def run() -> None:
+    mfs = AsyncMemoryFileSystem(max_quota=64 * 1024 * 1024)
+    await mfs.mkdir("/a")
+    async with await mfs.open("/a/f.bin", "wb") as f:
+        await f.write(b"data")
+    async with await mfs.open("/a/f.bin", "rb") as f:
+        print(await f.read())
 ```
 
 ---
@@ -276,22 +244,6 @@ Operational guidance:
 - `walk()` and `glob()` provide weak consistency: each directory level is
   snapshotted under `_global_lock`, but the overall traversal is NOT atomic.
   Concurrent structural changes may produce inconsistent results.
-
----
-
-## Async Usage
-
-```python
-from dmemfs import AsyncMemoryFileSystem
-
-async def run() -> None:
-    mfs = AsyncMemoryFileSystem(max_quota=64 * 1024 * 1024)
-    await mfs.mkdir("/a")
-    async with await mfs.open("/a/f.bin", "wb") as f:
-        await f.write(b"data")
-    async with await mfs.open("/a/f.bin", "rb") as f:
-        print(await f.read())
-```
 
 ---
 
