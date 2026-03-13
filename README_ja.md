@@ -28,7 +28,7 @@
 
 - ハードクォータ（`MFSQuotaExceededError`）で OOM 前に過大書き込みを拒否
 - メモリーガードで物理メモリ枯渇による OOM キルを事前に検知
-- ディレクトリ階層と複数ファイル操作（`import_tree`, `copy_tree`, `move`）
+- **完全なファイルシステムセマンティクス (Full FS Semantics)**: ディレクトリ階層と複数ファイル操作（`import_tree`, `copy_tree`, `move`）
 - ファイル単位RWロック + 構造用グローバルロックでスレッドセーフ
 - フリースレッド Python 対応（`PYTHON_GIL=0`）— 50スレッド競合下でのストレステスト済み
 - `asyncio.to_thread` ベースの Async ラッパー（`AsyncMemoryFileSystem`）

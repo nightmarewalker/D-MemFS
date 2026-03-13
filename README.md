@@ -28,7 +28,7 @@ Languages: [English](https://github.com/nightmarewalker/D-MemFS/blob/main/README
 
 - Hard quota (`MFSQuotaExceededError`) to reject oversized writes before OOM
 - Memory Guard to detect physical RAM exhaustion before it causes OOM kills
-- Hierarchical directories and multi-file operations (`import_tree`, `copy_tree`, `move`)
+- **Full filesystem semantics**: Hierarchical directories and multi-file operations (`import_tree`, `copy_tree`, `move`)
 - File-level RW locking + global structure lock for thread-safe operations
 - Free-threaded Python compatible (`PYTHON_GIL=0`) — stress-tested under 50-thread contention
 - Async wrapper (`AsyncMemoryFileSystem`) powered by `asyncio.to_thread`
