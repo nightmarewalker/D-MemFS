@@ -400,6 +400,13 @@ D-MemFS incurs a small overhead on tiny-file workloads but delivers significantl
 
 ---
 
+## Support
+
+If you find D-MemFS useful, consider [sponsoring the project](https://github.com/sponsors/nightmarewalker).
+
+---
+
 ## License
 
 MIT License
+

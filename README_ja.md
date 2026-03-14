@@ -394,6 +394,12 @@ D-MemFS は小ファイルワークロードでわずかなオーバーヘッド
 
 ---
 
+## 開発支援
+D-MemFS がお役に立てましたら、[GitHub Sponsors](https://github.com/sponsors/nightmarewalker) を通じた継続的な開発へのご支援を検討いただければ幸いです。
+
+---
+
 ## ライセンス
 
 MIT License
+
